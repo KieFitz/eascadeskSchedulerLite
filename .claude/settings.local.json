@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install openpyxl -q)",
+      "Bash(python create_template.py)"
+    ]
+  }
+}
