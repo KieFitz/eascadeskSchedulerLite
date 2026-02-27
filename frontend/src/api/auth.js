@@ -15,3 +15,8 @@ export async function me() {
   const { data } = await client.get('/auth/me')
   return data
 }
+
+export async function updateSettings(country) {
+  const { data } = await client.patch('/auth/me', { country })
+  return data
+}

@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { HomeIcon, StarIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
+import { HomeIcon, ScaleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
 import Badge from '../common/Badge'
 
 const navItems = [
   { to: '/', label: 'Home', Icon: HomeIcon },
+  { to: '/rules', label: 'Rules', Icon: ScaleIcon },
 ]
 
 export default function Sidebar() {

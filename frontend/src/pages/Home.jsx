@@ -154,13 +154,11 @@ export default function Home() {
               Upload an Excel file with Employees and Shifts sheets
             </p>
           </div>
-          <a
-            href={TEMPLATE_URL}
-            download
-            className="text-xs text-brand-purple hover:underline flex items-center gap-1"
-          >
-            <DocumentArrowDownIcon className="h-4 w-4" />
-            Download template
+          <a href={TEMPLATE_URL} download tabIndex={-1}>
+            <Button variant="secondary" size="sm">
+              <DocumentArrowDownIcon className="h-4 w-4" />
+              Download Template
+            </Button>
           </a>
         </div>
 

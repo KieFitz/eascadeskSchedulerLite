@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Home from './pages/Home'
+import Rules from './pages/Rules'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -19,6 +20,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Home />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/rules"
+        element={
+          <ProtectedRoute>
+            <Rules />
           </ProtectedRoute>
         }
       />
