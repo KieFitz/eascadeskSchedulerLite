@@ -145,8 +145,7 @@ export default function Rules() {
                 ))}
               </ul>
               <p className="text-xs text-muted mt-4 italic">
-                These constraints will be enforced as hard rules in the Timefold solver once fully
-                integrated. Currently shown for informational purposes.
+                These laws will be enforced as hard rules in the solver.
               </p>
             </div>
           ) : null

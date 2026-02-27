@@ -15,17 +15,66 @@ from timefold.solver.domain import (
 )
 from timefold.solver.score import HardSoftScore
 
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _span_overlaps_shift(span: dict, shift_date: date, shift_start: time, shift_end: time) -> bool:
+    """Return True if an availability span overlaps with the given shift."""
+    day = str(span.get("day", ""))
+    if "-" in day:
+        # Specific date span
+        if str(shift_date) != day:
+            return False
+    else:
+        # Weekday span
+        if WEEKDAY_NAMES[shift_date.weekday()] != day:
+            return False
+
+    span_start_str = span.get("start")
+    span_end_str = span.get("end")
+
+    # All-day rule
+    if not span_start_str or not span_end_str:
+        return True
+
+    span_start = time.fromisoformat(span_start_str)
+    span_end = time.fromisoformat(span_end_str)
+
+    # Intervals overlap when neither ends before the other starts
+    return not (shift_end <= span_start or span_end <= shift_start)
+
 
 @dataclass
 class Employee:
     id: str
     name: str
-    role: str
-    max_hours_week: int
+    min_hours_week: int
+    cost_per_hour: float
     skills: list[str]
+    preferred_spans: list[dict] = field(default_factory=list)
+    unpreferred_spans: list[dict] = field(default_factory=list)
+    unavailable_spans: list[dict] = field(default_factory=list)
 
     def has_skills(self, required: list[str]) -> bool:
         return all(s in self.skills for s in required)
+
+    def is_available(self, shift_date: date, shift_start: time, shift_end: time) -> bool:
+        return not any(
+            _span_overlaps_shift(s, shift_date, shift_start, shift_end)
+            for s in self.unavailable_spans
+        )
+
+    def prefers(self, shift_date: date, shift_start: time, shift_end: time) -> bool:
+        return any(
+            _span_overlaps_shift(s, shift_date, shift_start, shift_end)
+            for s in self.preferred_spans
+        )
+
+    def unprefers(self, shift_date: date, shift_start: time, shift_end: time) -> bool:
+        return any(
+            _span_overlaps_shift(s, shift_date, shift_start, shift_end)
+            for s in self.unpreferred_spans
+        )
 
 
 @dataclass
@@ -34,7 +83,6 @@ class Shift:
     date: date
     start_time: time
     end_time: time
-    required_role: str
     required_skills: list[str]
     slot_index: int
 

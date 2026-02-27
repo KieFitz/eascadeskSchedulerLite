@@ -35,9 +35,12 @@ def _solve_sync(employees_data: list[dict], shifts_data: list[dict]) -> dict:
         Employee(
             id=e["id"],
             name=e["name"],
-            role=e["role"],
-            max_hours_week=e["max_hours_week"],
-            skills=e["skills"],
+            min_hours_week=e.get("min_hours_week", 0),
+            cost_per_hour=e.get("cost_per_hour", 0.0),
+            skills=e.get("skills", []),
+            preferred_spans=e.get("preferred_spans", []),
+            unpreferred_spans=e.get("unpreferred_spans", []),
+            unavailable_spans=e.get("unavailable_spans", []),
         )
         for e in employees_data
     ]
@@ -49,8 +52,7 @@ def _solve_sync(employees_data: list[dict], shifts_data: list[dict]) -> dict:
             date=date.fromisoformat(s["date"]),
             start_time=time.fromisoformat(s["start_time"]),
             end_time=time.fromisoformat(s["end_time"]),
-            required_role=s["required_role"],
-            required_skills=s["required_skills"],
+            required_skills=s.get("required_skills", []),
             slot_index=s["slot_index"],
         )
         assignments.append(ShiftAssignment(id=s["id"], shift=shift))
@@ -66,7 +68,7 @@ def _solve_sync(employees_data: list[dict], shifts_data: list[dict]) -> dict:
             "date": str(a.shift.date) if a.shift else None,
             "start_time": str(a.shift.start_time) if a.shift else None,
             "end_time": str(a.shift.end_time) if a.shift else None,
-            "required_role": a.shift.required_role if a.shift else None,
+            "required_skills": a.shift.required_skills if a.shift else [],
             "slot_index": a.shift.slot_index if a.shift else None,
             "employee_id": a.employee.id if a.employee else None,
             "employee_name": a.employee.name if a.employee else None,

@@ -15,10 +15,12 @@ def define_constraints(factory: ConstraintFactory):
     return [
         # ── Hard constraints ──────────────────────────────────────────────────
         unassigned_shift(factory),
-        role_mismatch(factory),
         skills_mismatch(factory),
         overlapping_shifts(factory),
+        unavailable_shift(factory),
         # ── Soft constraints ──────────────────────────────────────────────────
+        preferred_shift(factory),
+        unpreferred_shift(factory),
         spread_workload(factory),
     ]
 
@@ -30,20 +32,6 @@ def unassigned_shift(factory: ConstraintFactory):
         .filter(lambda a: a.employee is None)
         .penalize(HardSoftScore.ONE_HARD)
         .as_constraint("Unassigned shift")
-    )
-
-
-def role_mismatch(factory: ConstraintFactory):
-    """Employee role must match the shift's required role."""
-    return (
-        factory.for_each(ShiftAssignment)
-        .filter(lambda a: (
-            a.employee is not None
-            and a.shift is not None
-            and a.employee.role != a.shift.required_role
-        ))
-        .penalize(HardSoftScore.ONE_HARD)
-        .as_constraint("Role mismatch")
     )
 
 
@@ -79,8 +67,50 @@ def overlapping_shifts(factory: ConstraintFactory):
     )
 
 
+def unavailable_shift(factory: ConstraintFactory):
+    """Employee must not be assigned during their unavailable windows."""
+    return (
+        factory.for_each(ShiftAssignment)
+        .filter(lambda a: (
+            a.employee is not None
+            and a.shift is not None
+            and not a.employee.is_available(a.shift.date, a.shift.start_time, a.shift.end_time)
+        ))
+        .penalize(HardSoftScore.ONE_HARD)
+        .as_constraint("Employee unavailable")
+    )
+
+
+def preferred_shift(factory: ConstraintFactory):
+    """Reward assigning employees to their preferred time windows."""
+    return (
+        factory.for_each(ShiftAssignment)
+        .filter(lambda a: (
+            a.employee is not None
+            and a.shift is not None
+            and a.employee.prefers(a.shift.date, a.shift.start_time, a.shift.end_time)
+        ))
+        .reward(HardSoftScore.ONE_SOFT)
+        .as_constraint("Preferred time slot")
+    )
+
+
+def unpreferred_shift(factory: ConstraintFactory):
+    """Penalise assigning employees to their unpreferred time windows."""
+    return (
+        factory.for_each(ShiftAssignment)
+        .filter(lambda a: (
+            a.employee is not None
+            and a.shift is not None
+            and a.employee.unprefers(a.shift.date, a.shift.start_time, a.shift.end_time)
+        ))
+        .penalize(HardSoftScore.ONE_SOFT)
+        .as_constraint("Unpreferred time slot")
+    )
+
+
 def spread_workload(factory: ConstraintFactory):
-    """Prefer distributing hours evenly — reward assignments to penalise gaps."""
+    """Prefer distributing hours evenly — reward all filled assignments."""
     return (
         factory.for_each(ShiftAssignment)
         .filter(lambda a: a.employee is not None)

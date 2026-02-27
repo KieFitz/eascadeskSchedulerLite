@@ -1,10 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { HomeIcon, ScaleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
+import { CalendarDaysIcon, ScaleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
 import Badge from '../common/Badge'
 
 const navItems = [
-  { to: '/', label: 'Home', Icon: HomeIcon },
+  { to: '/', label: 'Schedule', Icon: CalendarDaysIcon },
   { to: '/rules', label: 'Rules', Icon: ScaleIcon },
 ]
 

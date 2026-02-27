@@ -75,7 +75,7 @@ export default function Home() {
           date: s.date,
           start_time: s.start_time,
           end_time: s.end_time,
-          required_role: s.required_role,
+          required_skills: s.required_skills,
           slot_index: s.slot_index,
           employee_id: null,
           employee_name: null,
@@ -155,7 +155,7 @@ export default function Home() {
             </p>
           </div>
           <a href={TEMPLATE_URL} download tabIndex={-1}>
-            <Button variant="secondary" size="sm">
+            <Button variant="primary" size="sm">
               <DocumentArrowDownIcon className="h-4 w-4" />
               Download Template
             </Button>
