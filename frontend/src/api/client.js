@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+const API_BASE = (import.meta.env.VITE_API_URL ?? '') + '/api/v1'
+
 const client = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE,
 })
 
 // Attach access token to every request
@@ -47,7 +49,7 @@ client.interceptors.response.use(
       try {
         const refresh = localStorage.getItem('refresh_token')
         if (!refresh) throw new Error('No refresh token')
-        const { data } = await axios.post('/api/v1/auth/refresh', {
+        const { data } = await axios.post(API_BASE + '/auth/refresh', {
           refresh_token: refresh,
         })
         localStorage.setItem('access_token', data.access_token)

@@ -18,7 +18,13 @@ class Settings(BaseSettings):
 
     SOLVER_TIMEOUT_SECONDS: int = 30
 
-    FRONTEND_URL: str = "http://localhost:5173"
+    # Comma-separated allowed CORS origins.
+    # e.g. "https://d123.cloudfront.net,http://localhost:5173"
+    ALLOWED_ORIGINS: str = "http://localhost:5173"
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
 
 settings = Settings()
