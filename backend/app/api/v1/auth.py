@@ -13,7 +13,7 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, TokenResponse
-from app.schemas.user import UserOut
+from app.schemas.user import UpdateSettingsRequest, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -76,4 +76,17 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_settings(
+    body: UpdateSettingsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if body.country is not None:
+        current_user.country = body.country
+    await db.commit()
+    await db.refresh(current_user)
     return current_user
