@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(pip install openpyxl -q)",
-      "Bash(python create_template.py)"
+      "Bash(python create_template.py)",
+      "Bash(docker exec eascadeskschedulerlite-backend-1 python -c \"import timefold.solver.domain as d; print\\([x for x in dir\\(d\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(docker run --rm eascadeskschedulerlite-backend python -c \"import timefold.solver.domain as d; print\\([x for x in dir\\(d\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(docker exec eascadeskschedulerlite-backend-1 python -c \"import timefold.solver.score as s; print\\([x for x in dir\\(s\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(docker exec eascadeskschedulerlite-backend-1 python -c \"import timefold.solver.config as c; print\\([x for x in dir\\(c\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(docker exec eascadeskschedulerlite-backend-1 python -c \"from timefold.solver.config import TerminationConfig; import inspect; print\\(inspect.signature\\(TerminationConfig.__init__\\)\\)\")",
+      "Bash(docker exec eascadeskschedulerlite-backend-1 python -c \"from timefold.solver.config import Duration; import inspect; print\\(inspect.signature\\(Duration.__init__\\)\\)\")"
     ]
   }
 }

@@ -5,6 +5,7 @@ from datetime import date, time
 
 from timefold.solver import SolverFactory
 from timefold.solver.config import (
+    Duration,
     SolverConfig,
     ScoreDirectorFactoryConfig,
     TerminationConfig,
@@ -23,7 +24,7 @@ def _build_solver():
             constraint_provider_function=define_constraints
         ),
         termination_config=TerminationConfig(
-            spent_limit_in_seconds=settings.SOLVER_TIMEOUT_SECONDS
+            spent_limit=Duration(seconds=settings.SOLVER_TIMEOUT_SECONDS)
         ),
     )
     return SolverFactory.create(config).build_solver()

@@ -3,6 +3,8 @@
 *.env.local
 
 # ── Python ────────────────────────────────────────────────────────────────────
+backend/.venv/
+backend/timefold_stubs/
 __pycache__/
 *.py[cod]
 *.pyo

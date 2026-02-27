@@ -1,8 +1,8 @@
 """Timefold constraint definitions for shift scheduling."""
 
-from timefold.solver.score import HardSoftScore
-from timefold.solver.constraint import (
+from timefold.solver.score import (
     ConstraintFactory,
+    HardSoftScore,
     Joiners,
     constraint_provider,
 )

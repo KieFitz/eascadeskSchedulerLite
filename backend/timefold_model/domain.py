@@ -5,11 +5,11 @@ from datetime import date, time
 from typing import Annotated, Optional
 
 from timefold.solver.domain import (
-    PlanningEntity,
+    planning_entity,
+    planning_solution,
+    PlanningVariable,
     PlanningId,
     PlanningScore,
-    PlanningSolution,
-    PlanningVariable,
     PlanningEntityCollectionProperty,
     ValueRangeProvider,
 )
@@ -55,23 +55,19 @@ class Shift:
         return start_a < end_b and start_b < end_a
 
 
-@PlanningEntity
+@planning_entity
 @dataclass
 class ShiftAssignment:
-    id: str = field(default="")
+    id: Annotated[str, PlanningId] = field(default="")
     shift: Optional[Shift] = field(default=None)
     employee: Annotated[Optional[Employee], PlanningVariable] = field(default=None)
 
-    @PlanningId
-    def get_id(self) -> str:
-        return self.id
 
-
-@PlanningSolution
+@planning_solution
 @dataclass
 class ScheduleSolution:
     employees: Annotated[list[Employee], ValueRangeProvider] = field(default_factory=list)
-    shift_assignments: Annotated[
-        list[ShiftAssignment], PlanningEntityCollectionProperty
-    ] = field(default_factory=list)
+    shift_assignments: Annotated[list[ShiftAssignment], PlanningEntityCollectionProperty] = field(
+        default_factory=list
+    )
     score: Annotated[Optional[HardSoftScore], PlanningScore] = field(default=None)
