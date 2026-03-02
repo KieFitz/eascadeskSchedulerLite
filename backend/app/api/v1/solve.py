@@ -31,11 +31,17 @@ async def solve(
     if not run:
         raise HTTPException(status_code=404, detail="Schedule run not found")
 
-    if run.status == "completed":
-        raise HTTPException(status_code=400, detail="This schedule has already been solved")
+    # A run currently being processed cannot be re-triggered
+    if run.status == "processing":
+        raise HTTPException(status_code=409, detail="This schedule is already being solved")
 
-    # Enforce free-tier monthly limit
-    if current_user.plan == "free":
+    # Track whether this is a fresh solve or a re-solve of an already-completed run.
+    # Re-solving a previously completed run does NOT count against the free-tier limit
+    # (it was already counted the first time it completed).
+    is_resolving = run.status == "completed"
+
+    # Enforce free-tier monthly limit for new solves only
+    if current_user.plan == "free" and not is_resolving:
         today = date.today()
         count_result = await db.execute(
             select(func.count(ScheduleRun.id)).where(
@@ -55,12 +61,18 @@ async def solve(
                 ),
             )
 
-    # Mark as processing
+    # Mark as processing and clear any previous result
     run.status = "processing"
+    run.error_message = None
     await db.commit()
 
     try:
-        result_data = await solve_async(run.employees_data, run.shifts_data, country=current_user.country)
+        result_data = await solve_async(
+            run.employees_data,
+            run.shifts_data,
+            country=current_user.country,
+            timeout_seconds=body.timeout_seconds,
+        )
         run.status = "completed"
         run.result_data = result_data
         run.score_info = result_data.get("score", "")

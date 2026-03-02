@@ -21,3 +21,6 @@ class ScheduleRunOut(BaseModel):
 
 class SolveRequest(BaseModel):
     run_id: str
+    # Override the default SOLVER_TIMEOUT_SECONDS for this solve only.
+    # Useful for re-scheduling: pass a higher value to search longer.
+    timeout_seconds: int | None = None

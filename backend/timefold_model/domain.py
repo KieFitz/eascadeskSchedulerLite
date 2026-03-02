@@ -1,7 +1,22 @@
-"""Timefold planning domain for employee shift scheduling."""
+"""Timefold planning domain for employee shift scheduling.
+
+DESIGN RULE — NO closures/generators in domain methods.
+JPyInterpreter transpiles Python → Java bytecode.  Generator expressions
+(e.g. `any(f(x) for x in lst)`) capture outer variables as PythonCell objects,
+and the JVM bridge cannot cast PythonInteger/PythonTime/etc. to PythonCell.
+
+Availability, preferences, and skill checks are therefore pre-computed in
+`scheduler.py` (pure Python, never seen by Timefold) and stored as plain
+lists of shift IDs on each Employee.  Domain methods are then trivial list
+membership tests — no closures, no generators, no type marshalling issues.
+
+Also: Python `time` objects cannot be used anywhere here either.
+`Shift.start_time` / `end_time` are stored as plain ints (minutes since midnight).
+`date` objects are fine.
+"""
 
 from dataclasses import dataclass, field
-from datetime import date, time
+from datetime import date
 from typing import Annotated, Optional
 
 from timefold.solver.domain import (
@@ -15,34 +30,6 @@ from timefold.solver.domain import (
 )
 from timefold.solver.score import HardSoftScore
 
-WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-
-def _span_overlaps_shift(span: dict, shift_date: date, shift_start: time, shift_end: time) -> bool:
-    """Return True if an availability span overlaps with the given shift."""
-    day = str(span.get("day", ""))
-    if "-" in day:
-        # Specific date span
-        if str(shift_date) != day:
-            return False
-    else:
-        # Weekday span
-        if WEEKDAY_NAMES[shift_date.weekday()] != day:
-            return False
-
-    span_start_str = span.get("start")
-    span_end_str = span.get("end")
-
-    # All-day rule
-    if not span_start_str or not span_end_str:
-        return True
-
-    span_start = time.fromisoformat(span_start_str)
-    span_end = time.fromisoformat(span_end_str)
-
-    # Intervals overlap when neither ends before the other starts
-    return not (shift_end <= span_start or span_end <= shift_start)
-
 
 @dataclass
 class Employee:
@@ -51,56 +38,48 @@ class Employee:
     min_hours_week: int
     cost_per_hour: float
     skills: list[str]
-    preferred_spans: list[dict] = field(default_factory=list)
-    unpreferred_spans: list[dict] = field(default_factory=list)
-    unavailable_spans: list[dict] = field(default_factory=list)
+    # Pre-computed in scheduler.py before Timefold sees the data.
+    # These are lists of shift IDs (strings) — simple membership tests only.
+    unavailable_shift_ids: list[str] = field(default_factory=list)
+    preferred_shift_ids: list[str] = field(default_factory=list)
+    unpreferred_shift_ids: list[str] = field(default_factory=list)
 
     def has_skills(self, required: list[str]) -> bool:
-        return all(s in self.skills for s in required)
+        """No generator — explicit for-loop avoids PythonCell closure issue."""
+        for skill in required:
+            if skill not in self.skills:
+                return False
+        return True
 
-    def is_available(self, shift_date: date, shift_start: time, shift_end: time) -> bool:
-        return not any(
-            _span_overlaps_shift(s, shift_date, shift_start, shift_end)
-            for s in self.unavailable_spans
-        )
+    def is_available_for(self, shift_id: str) -> bool:
+        return shift_id not in self.unavailable_shift_ids
 
-    def prefers(self, shift_date: date, shift_start: time, shift_end: time) -> bool:
-        return any(
-            _span_overlaps_shift(s, shift_date, shift_start, shift_end)
-            for s in self.preferred_spans
-        )
+    def prefers_shift(self, shift_id: str) -> bool:
+        return shift_id in self.preferred_shift_ids
 
-    def unprefers(self, shift_date: date, shift_start: time, shift_end: time) -> bool:
-        return any(
-            _span_overlaps_shift(s, shift_date, shift_start, shift_end)
-            for s in self.unpreferred_spans
-        )
+    def unprefers_shift(self, shift_id: str) -> bool:
+        return shift_id in self.unpreferred_shift_ids
 
 
 @dataclass
 class Shift:
     id: str
     date: date
-    start_time: time
-    end_time: time
+    start_time: int  # minutes since midnight, e.g. 480 = 08:00
+    end_time: int    # minutes since midnight, e.g. 960 = 16:00
     required_skills: list[str]
     slot_index: int
 
     def duration_hours(self) -> float:
-        start_mins = self.start_time.hour * 60 + self.start_time.minute
-        end_mins = self.end_time.hour * 60 + self.end_time.minute
-        if end_mins <= start_mins:
-            end_mins += 24 * 60  # overnight shift
-        return (end_mins - start_mins) / 60
+        end = self.end_time
+        if end <= self.start_time:
+            end = end + 1440  # overnight shift
+        return (end - self.start_time) / 60
 
     def overlaps(self, other: "Shift") -> bool:
         if self.date != other.date:
             return False
-        start_a = self.start_time.hour * 60 + self.start_time.minute
-        end_a = self.end_time.hour * 60 + self.end_time.minute
-        start_b = other.start_time.hour * 60 + other.start_time.minute
-        end_b = other.end_time.hour * 60 + other.end_time.minute
-        return start_a < end_b and start_b < end_a
+        return self.start_time < other.end_time and other.start_time < self.end_time
 
 
 @planning_entity
