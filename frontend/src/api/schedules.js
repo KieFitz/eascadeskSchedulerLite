@@ -9,8 +9,10 @@ export async function uploadExcel(file) {
   return data
 }
 
-export async function solveSchedule(run_id) {
-  const { data } = await client.post('/solve', { run_id })
+export async function solveSchedule(run_id, timeout_seconds = null) {
+  const body = { run_id }
+  if (timeout_seconds) body.timeout_seconds = timeout_seconds
+  const { data } = await client.post('/solve', body)
   return data
 }
 

@@ -35,6 +35,7 @@ export default function Home() {
   const [assignments, setAssignments] = useState([])
   const [solved, setSolved] = useState(false)
   const [scoreInfo, setScoreInfo] = useState(null)
+  const [solveTimeout, setSolveTimeout] = useState(30)
 
   // Check for Stripe redirect
   useEffect(() => {
@@ -97,7 +98,7 @@ export default function Home() {
     if (!runId) return
     setSolving(true)
     try {
-      const run = await solveSchedule(runId)
+      const run = await solveSchedule(runId, solveTimeout)
       if (run.status === 'completed' && run.result_data?.assignments) {
         const solved_assignments = run.result_data.assignments.map((a) => ({
           ...a,
@@ -254,19 +255,41 @@ export default function Home() {
               <h2 className="font-semibold text-dark">Schedule Preview</h2>
               <p className="text-xs text-muted mt-0.5">
                 {employees.length} employees · {[...new Set(shifts.map(s => s.date))].length} days
-                {solved && scoreInfo && (
-                  <span className="ml-2 text-brand-purple font-medium">· Score: {scoreInfo}</span>
-                )}
+                {solved && scoreInfo && (() => {
+                  const hasHard = scoreInfo.includes('-') && !scoreInfo.startsWith('0hard')
+                  return (
+                    <span className={`ml-2 font-medium ${hasHard ? 'text-red-600' : 'text-teal-600'}`}>
+                      · Score: {scoreInfo}
+                      {hasHard && ' ⚠ hard violations'}
+                    </span>
+                  )
+                })()}
               </p>
             </div>
 
             {/* Actions */}
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Timeout picker — shown when a result exists so user can run longer */}
+              {hasData && (
+                <select
+                  value={solveTimeout}
+                  onChange={(e) => setSolveTimeout(Number(e.target.value))}
+                  disabled={solving}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
+                  title="Solver time limit"
+                >
+                  <option value={30}>30 s</option>
+                  <option value={60}>1 min</option>
+                  <option value={120}>2 min</option>
+                  <option value={300}>5 min</option>
+                </select>
+              )}
+
               <Button
                 variant="teal"
                 onClick={handleSolve}
                 loading={solving}
-                disabled={solved && !solving}
+                disabled={solving}
               >
                 <BoltIcon className="h-4 w-4" />
                 {solving ? 'Scheduling…' : solved ? 'Re-schedule' : 'Auto-Schedule'}

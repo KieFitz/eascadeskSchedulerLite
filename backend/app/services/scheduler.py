@@ -153,6 +153,7 @@ def _solve_sync(
     shifts_data: list[dict],
     country: str | None = None,
     timeout_seconds: int | None = None,
+    previous_assignments: list[dict] | None = None,
 ) -> dict:
     # Apply the country's labour-law constraint config before building the solver
     set_country_config(country)
@@ -174,8 +175,18 @@ def _solve_sync(
         for e in employees_data
     ]
 
-    # Build a lookup so we can attach cost_per_hour to result assignments
+    # Build lookups
     emp_cost_map: dict[str, float] = {e.id: e.cost_per_hour for e in employees}
+    emp_by_id: dict[str, Employee] = {e.id: e for e in employees}
+
+    # Warm-start map: shift_id → employee_id from the previous solve result
+    warm_start: dict[str, str] = {}
+    if previous_assignments:
+        for pa in previous_assignments:
+            sid = pa.get("shift_id")
+            eid = pa.get("employee_id")
+            if sid and eid:
+                warm_start[sid] = eid
 
     assignments = []
     for s in shifts_data:
@@ -187,7 +198,12 @@ def _solve_sync(
             required_skills=s.get("required_skills", []),
             slot_index=s["slot_index"],
         )
-        assignments.append(ShiftAssignment(id=s["id"], shift=shift))
+        sa = ShiftAssignment(id=s["id"], shift=shift)
+        # Seed from previous solution so the solver improves rather than restarts
+        prev_emp_id = warm_start.get(s["id"])
+        if prev_emp_id and prev_emp_id in emp_by_id:
+            sa.employee = emp_by_id[prev_emp_id]
+        assignments.append(sa)
 
     effective_timeout = timeout_seconds if timeout_seconds and timeout_seconds > 0 else settings.SOLVER_TIMEOUT_SECONDS
     problem = ScheduleSolution(employees=employees, shift_assignments=assignments)
@@ -221,9 +237,10 @@ async def solve_async(
     shifts_data: list[dict],
     country: str | None = None,
     timeout_seconds: int | None = None,
+    previous_assignments: list[dict] | None = None,
 ) -> dict:
     """Run the solver in a thread-pool so it doesn't block the event loop."""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
-        None, _solve_sync, employees_data, shifts_data, country, timeout_seconds
+        None, _solve_sync, employees_data, shifts_data, country, timeout_seconds, previous_assignments
     )

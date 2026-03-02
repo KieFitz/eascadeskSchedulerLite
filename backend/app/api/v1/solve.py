@@ -66,12 +66,19 @@ async def solve(
     run.error_message = None
     await db.commit()
 
+    # For re-solves, pass the previous assignments so the solver warm-starts
+    # from the last known solution instead of from scratch.
+    previous_assignments = (
+        run.result_data.get("assignments") if is_resolving and run.result_data else None
+    )
+
     try:
         result_data = await solve_async(
             run.employees_data,
             run.shifts_data,
             country=current_user.country,
             timeout_seconds=body.timeout_seconds,
+            previous_assignments=previous_assignments,
         )
         run.status = "completed"
         run.result_data = result_data
