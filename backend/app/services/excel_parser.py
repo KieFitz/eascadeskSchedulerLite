@@ -161,7 +161,7 @@ def _parse_employees(ws, availability: dict) -> list[dict]:
     employees = []
     for i, row in enumerate(rows[1:], start=2):
         name = row[idx["Name"]]
-        if not name or str(name).strip().startswith("Full name"):
+        if not name or str(name).strip().lower().startswith(("full name", "nombre")):
             continue  # skip hint rows and empty rows
 
         name_str = str(name).strip()
@@ -231,8 +231,8 @@ def _parse_availability(ws) -> dict:
             continue  # skip empty / hint rows
 
         employee_str = str(employee).strip()
-        # Skip the hint row
-        if employee_str.lower().startswith("must match"):
+        # Skip the hint row (English and Spanish)
+        if employee_str.lower().startswith(("must match", "debe")):
             continue
 
         av_type_str = _normalise_avail_type(str(av_type).strip())
@@ -307,8 +307,8 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
 
         if not raw_date or not raw_start or not raw_end:
             continue
-        # Skip hint rows
-        if str(raw_date).strip().upper().startswith("YYYY"):
+        # Skip hint rows (English: "YYYY-MM-DD format", Spanish: "Formato YYYY-MM-DD")
+        if str(raw_date).strip().upper().startswith(("YYYY", "FORMATO")):
             continue
 
         try:
