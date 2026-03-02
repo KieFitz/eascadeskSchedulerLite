@@ -5,54 +5,18 @@ import Layout from '../components/layout/Layout'
 import Button from '../components/common/Button'
 import { useAuth } from '../context/AuthContext'
 import { updateSettings } from '../api/auth'
+import { useTranslations } from '../i18n'
 import toast from 'react-hot-toast'
-
-const COUNTRIES = [
-  {
-    code: 'IE',
-    name: 'Ireland',
-    flag: '🇮🇪',
-    summary: 'Working Time Act 1997',
-    rules: [
-      'Maximum 48-hour average working week',
-      'Minimum 11 hours rest between shifts',
-      'Minimum 24-hour weekly rest period',
-      'Minimum 15-minute break after 4.5 hours',
-      'Sunday premium pay entitlement',
-    ],
-  },
-  {
-    code: 'GB',
-    name: 'United Kingdom',
-    flag: '🇬🇧',
-    summary: 'Working Time Regulations 1998',
-    rules: [
-      'Maximum 48-hour average working week (opt-out available)',
-      'Minimum 11 hours daily rest',
-      'Minimum 24-hour weekly rest period',
-      'Minimum 20-minute break after 6 hours',
-      '5.6 weeks statutory annual leave',
-    ],
-  },
-  {
-    code: 'ES',
-    name: 'Spain',
-    flag: '🇪🇸',
-    summary: 'Workers\' Statute (Estatuto de los Trabajadores)',
-    rules: [
-      'Maximum 40-hour ordinary working week',
-      'Maximum 9 hours overtime per day',
-      'Minimum 12 hours rest between shifts',
-      'Minimum 1.5 days weekly rest',
-      '30 calendar days annual leave',
-    ],
-  },
-]
 
 export default function Rules() {
   const { user, refreshUser } = useAuth()
+  const { t } = useTranslations(user?.country)
   const [selected, setSelected] = useState(user?.country ?? null)
   const [saving, setSaving] = useState(false)
+
+  // When the page is rendered with a different country in-progress selection,
+  // preview that country's translations but keep the locale based on saved country.
+  const { t: tSel } = useTranslations(selected)
 
   useEffect(() => {
     setSelected(user?.country ?? null)
@@ -65,16 +29,18 @@ export default function Rules() {
     try {
       await updateSettings(selected)
       await refreshUser()
-      toast.success('Country saved!')
+      toast.success(t('toastCountrySaved'))
     } catch {
-      toast.error('Could not save settings.')
+      toast.error(t('toastCountryFail'))
     } finally {
       setSaving(false)
     }
   }
 
+  const countries = t('countries')
+
   return (
-    <Layout title="Rules">
+    <Layout title={t('rulesTitle')}>
       <div className="max-w-3xl">
         {/* Intro */}
         <div className="bg-white rounded-xl shadow-soft p-6 mb-5">
@@ -83,22 +49,16 @@ export default function Rules() {
               <GlobeAltIcon className="h-6 w-6 text-brand-purple" />
             </div>
             <div>
-              <h2 className="font-semibold text-dark mb-1">Labour Law Country</h2>
-              <p className="text-sm text-muted leading-relaxed">
-                Select the country whose labour laws apply to your workforce. The scheduler will
-                use this setting to apply the appropriate hard constraints — such as minimum rest
-                periods and maximum shift lengths — when building your schedule.
-              </p>
-              <p className="text-xs text-muted mt-2 italic">
-                Industry-specific rule templates are coming soon.
-              </p>
+              <h2 className="font-semibold text-dark mb-1">{t('labourLawCountry')}</h2>
+              <p className="text-sm text-muted leading-relaxed">{t('labourLawDesc')}</p>
+              <p className="text-xs text-muted mt-2 italic">{t('comingSoon')}</p>
             </div>
           </div>
         </div>
 
         {/* Country cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-          {COUNTRIES.map((c) => {
+          {countries.map((c) => {
             const isSelected = selected === c.code
             return (
               <button
@@ -129,12 +89,12 @@ export default function Rules() {
 
         {/* Rule detail */}
         {selected && (() => {
-          const country = COUNTRIES.find((c) => c.code === selected)
+          const country = countries.find((c) => c.code === selected)
           return country ? (
             <div className="bg-white rounded-xl shadow-soft p-6 mb-5">
               <h3 className="font-semibold text-dark mb-3 flex items-center gap-2">
                 <span>{country.flag}</span>
-                {country.name} — Scheduling Constraints
+                {country.name} — {tSel('schedulingConstraints')}
               </h3>
               <ul className="space-y-2">
                 {country.rules.map((rule, i) => (
@@ -144,9 +104,7 @@ export default function Rules() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted mt-4 italic">
-                These laws will be enforced as hard rules in the solver.
-              </p>
+              <p className="text-xs text-muted mt-4 italic">{tSel('constraintsNote')}</p>
             </div>
           ) : null
         })()}
@@ -154,12 +112,12 @@ export default function Rules() {
         {/* Save */}
         <div className="flex items-center gap-3">
           <Button onClick={handleSave} disabled={!isDirty} loading={saving}>
-            Save Settings
+            {t('saveSettings')}
           </Button>
           {!isDirty && user?.country && (
             <span className="text-xs text-muted">
-              Currently set to{' '}
-              <strong>{COUNTRIES.find((c) => c.code === user.country)?.name ?? user.country}</strong>
+              {t('currentlySetTo')}{' '}
+              <strong>{countries.find((c) => c.code === user.country)?.name ?? user.country}</strong>
             </span>
           )}
         </div>

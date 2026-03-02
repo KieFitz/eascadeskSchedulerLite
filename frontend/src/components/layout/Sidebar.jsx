@@ -1,16 +1,18 @@
 import { NavLink } from 'react-router-dom'
 import { CalendarDaysIcon, ScaleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
+import { useTranslations } from '../../i18n'
 import Badge from '../common/Badge'
 import logo from '../../assets/logo.png'
 
-const navItems = [
-  { to: '/', label: 'Schedule', Icon: CalendarDaysIcon },
-  { to: '/rules', label: 'Rules', Icon: ScaleIcon },
-]
-
 export default function Sidebar() {
   const { user, logout } = useAuth()
+  const { t } = useTranslations(user?.country)
+
+  const navItems = [
+    { to: '/', label: t('navSchedule'), Icon: CalendarDaysIcon },
+    { to: '/rules', label: t('navRules'), Icon: ScaleIcon },
+  ]
 
   return (
     <aside className="fixed inset-y-0 left-0 w-60 bg-dark flex flex-col z-40">
@@ -73,7 +75,7 @@ export default function Sidebar() {
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/10 transition-colors"
         >
           <ArrowRightStartOnRectangleIcon className="h-5 w-5 flex-shrink-0" />
-          Log out
+          {t('logout')}
         </button>
       </div>
     </aside>

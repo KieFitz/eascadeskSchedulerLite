@@ -13,14 +13,14 @@ import Spinner from '../components/common/Spinner'
 import EmptyState from '../components/common/EmptyState'
 import Badge from '../components/common/Badge'
 import ScheduleGantt from '../components/gantt/ScheduleGantt'
-import { downloadExport, solveSchedule, uploadExcel } from '../api/schedules'
+import { downloadExport, downloadTemplate, solveSchedule, uploadExcel } from '../api/schedules'
 import { useAuth } from '../context/AuthContext'
+import { useTranslations } from '../i18n'
 import toast from 'react-hot-toast'
-
-const TEMPLATE_URL = '/schedule_template.xlsx'
 
 export default function Home() {
   const { user } = useAuth()
+  const { t, isSpanish } = useTranslations(user?.country)
   const fileRef = useRef(null)
 
   const [file, setFile] = useState(null)
@@ -28,6 +28,7 @@ export default function Home() {
   const [uploading, setUploading] = useState(false)
   const [solving, setSolving] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [templateDownloading, setTemplateDownloading] = useState(false)
 
   const [runId, setRunId] = useState(null)
   const [employees, setEmployees] = useState([])
@@ -41,7 +42,7 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('payment') === 'success') {
-      toast.success('You are now on the Pro plan!')
+      toast.success(t('toastPaymentSuccess'))
       window.history.replaceState({}, '', '/')
     }
   }, [])
@@ -49,7 +50,7 @@ export default function Home() {
   const handleFile = (f) => {
     if (!f) return
     if (!f.name.endsWith('.xlsx') && !f.name.endsWith('.xls')) {
-      toast.error('Please select an Excel file (.xlsx or .xls)')
+      toast.error(t('toastFiletype'))
       return
     }
     setFile(f)
@@ -84,11 +85,9 @@ export default function Home() {
       )
       setSolved(false)
       setScoreInfo(null)
-      toast.success(
-        `Uploaded: ${data.employee_count} employees, ${data.shift_slot_count} shift slots`
-      )
+      toast.success(t('toastUploaded', data.employee_count, data.shift_slot_count))
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Upload failed. Check your Excel format.')
+      toast.error(err?.response?.data?.detail ?? t('toastUploadFail'))
     } finally {
       setUploading(false)
     }
@@ -107,12 +106,12 @@ export default function Home() {
         setAssignments(solved_assignments)
         setSolved(true)
         setScoreInfo(run.score_info)
-        toast.success('Schedule solved!')
+        toast.success(t('toastSolved'))
       } else if (run.status === 'failed') {
-        toast.error(run.error_message ?? 'Solve failed. Please try again.')
+        toast.error(run.error_message ?? t('toastSolveFail'))
       }
     } catch (err) {
-      const msg = err?.response?.data?.detail ?? 'Solve failed. Please try again.'
+      const msg = err?.response?.data?.detail ?? t('toastSolveFail')
       toast.error(msg)
     } finally {
       setSolving(false)
@@ -125,9 +124,21 @@ export default function Home() {
     try {
       await downloadExport(runId)
     } catch (err) {
-      toast.error('Could not download the schedule.')
+      toast.error(t('toastDownloadFail'))
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleTemplateDownload = async () => {
+    setTemplateDownloading(true)
+    try {
+      await downloadTemplate()
+    } catch {
+      // Fallback to static file if API fails
+      window.location.href = '/schedule_template.xlsx'
+    } finally {
+      setTemplateDownloading(false)
     }
   }
 
@@ -145,22 +156,23 @@ export default function Home() {
   const hasData = employees.length > 0 && shifts.length > 0
 
   return (
-    <Layout title="Schedule">
+    <Layout title={t('navSchedule')}>
       {/* ── Upload Card ───────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-soft mb-5">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="font-semibold text-dark">Upload Schedule</h2>
-            <p className="text-xs text-muted mt-0.5">
-              Upload an Excel file with Employees and Shifts sheets
-            </p>
+            <h2 className="font-semibold text-dark">{t('uploadSchedule')}</h2>
+            <p className="text-xs text-muted mt-0.5">{t('uploadSubtitle')}</p>
           </div>
-          <a href={TEMPLATE_URL} download tabIndex={-1}>
-            <Button variant="primary" size="sm">
-              <DocumentArrowDownIcon className="h-4 w-4" />
-              Download Template
-            </Button>
-          </a>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleTemplateDownload}
+            loading={templateDownloading}
+          >
+            <DocumentArrowDownIcon className="h-4 w-4" />
+            {t('downloadTemplate')}
+          </Button>
         </div>
 
         <div className="p-6">
@@ -174,12 +186,12 @@ export default function Home() {
               {user.plan === 'paid' ? (
                 <>
                   <Badge colour="teal">Pro</Badge>
-                  Unlimited schedules · shifts up to 31 days ahead
+                  {t('planPro')}
                 </>
               ) : (
                 <>
                   <Badge colour="amber">Free</Badge>
-                  1 auto-schedule per month · shifts up to 14 days ahead
+                  {t('planFree')}
                 </>
               )}
             </div>
@@ -212,16 +224,14 @@ export default function Home() {
                 <DocumentArrowDownIcon className="h-10 w-10 text-brand-teal" />
                 <p className="font-medium text-dark text-sm">{file.name}</p>
                 <p className="text-xs text-muted">
-                  {(file.size / 1024).toFixed(1)} KB · Click to change
+                  {(file.size / 1024).toFixed(1)} KB · {isSpanish ? 'Haz clic para cambiar' : 'Click to change'}
                 </p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <ArrowUpTrayIcon className="h-10 w-10 text-muted" />
-                <p className="font-medium text-dark text-sm">
-                  Drag & drop your Excel file here
-                </p>
-                <p className="text-xs text-muted">or click to browse · .xlsx, .xls</p>
+                <p className="font-medium text-dark text-sm">{t('dropzone')}</p>
+                <p className="text-xs text-muted">{t('dropzoneSub')}</p>
               </div>
             )}
           </div>
@@ -235,12 +245,12 @@ export default function Home() {
               className="flex-shrink-0"
             >
               <ArrowUpTrayIcon className="h-4 w-4" />
-              Upload
+              {t('upload')}
             </Button>
             {file && (
               <Button variant="ghost" size="sm" onClick={resetUpload}>
                 <XCircleIcon className="h-4 w-4" />
-                Clear
+                {t('clear')}
               </Button>
             )}
           </div>
@@ -252,15 +262,15 @@ export default function Home() {
         <div className="bg-white rounded-xl shadow-soft">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h2 className="font-semibold text-dark">Schedule Preview</h2>
+              <h2 className="font-semibold text-dark">{t('schedulePreview')}</h2>
               <p className="text-xs text-muted mt-0.5">
-                {employees.length} employees · {shifts.length} shifts · {[...new Set(shifts.map(s => s.date))].length} days
+                {t('statLine', employees.length, shifts.length, [...new Set(shifts.map(s => s.date))].length)}
                 {solved && scoreInfo && (() => {
                   const hasHard = scoreInfo.includes('-') && !scoreInfo.startsWith('0hard')
                   return (
                     <span className={`ml-2 font-medium ${hasHard ? 'text-red-600' : 'text-teal-600'}`}>
                       · Score: {scoreInfo}
-                      {hasHard && ' ⚠ hard violations'}
+                      {hasHard && ` ⚠ ${t('hardViolations')}`}
                     </span>
                   )
                 })()}
@@ -269,14 +279,14 @@ export default function Home() {
 
             {/* Actions */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Timeout picker — shown when a result exists so user can run longer */}
+              {/* Timeout picker */}
               {hasData && (
                 <select
                   value={solveTimeout}
                   onChange={(e) => setSolveTimeout(Number(e.target.value))}
                   disabled={solving}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
-                  title="Solver time limit"
+                  title={isSpanish ? 'Tiempo límite del planificador' : 'Solver time limit'}
                 >
                   <option value={30}>30 s</option>
                   <option value={60}>1 min</option>
@@ -292,7 +302,7 @@ export default function Home() {
                 disabled={solving}
               >
                 <BoltIcon className="h-4 w-4" />
-                {solving ? 'Scheduling…' : solved ? 'Re-schedule' : 'Auto-Schedule'}
+                {solving ? t('scheduling') : solved ? t('reschedule') : t('autoSchedule')}
               </Button>
 
               {solved && (
@@ -302,7 +312,7 @@ export default function Home() {
                   loading={downloading}
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" />
-                  Download Excel
+                  {t('downloadExcel')}
                 </Button>
               )}
             </div>
@@ -311,9 +321,7 @@ export default function Home() {
           {solving ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Spinner size="lg" />
-              <p className="text-sm text-muted">
-                EascaDesk is optimising your schedule…
-              </p>
+              <p className="text-sm text-muted">{t('optimising')}</p>
             </div>
           ) : (
             <ScheduleGantt
@@ -327,8 +335,8 @@ export default function Home() {
         <div className="bg-white rounded-xl shadow-soft">
           <EmptyState
             icon={CalendarDaysIcon}
-            title="No schedule loaded"
-            description="Upload an Excel file above to see your employees and shifts on the Gantt chart."
+            title={t('noSchedule')}
+            description={t('noScheduleDesc')}
           />
         </div>
       )}

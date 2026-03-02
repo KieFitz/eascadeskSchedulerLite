@@ -1,9 +1,11 @@
 """Export a solved schedule result to a user-friendly Excel workbook.
 
-Three sheets:
+Four sheets:
   1. Employee Schedule — one row per employee, one column per date (Gantt-like)
   2. Shift Schedule   — grouped by date, each shift row shows assigned employee
+                        + daily totals (hours, shifts, cost)
   3. All Assignments  — flat editable table (designed for manual tweaks)
+  4. Employee Stats   — scheduled hours, shifts worked, and total pay per employee
 """
 
 from collections import defaultdict
@@ -25,15 +27,17 @@ WHITE        = "FFFFFF"
 GREY_LIGHT   = "F3F4F6"
 
 # ── Reusable styles ──────────────────────────────────────────────────────────
-HEADER_FILL  = PatternFill("solid", fgColor=PURPLE)
-HEADER_FONT  = Font(bold=True, color=WHITE, size=11)
-DATE_FILL    = PatternFill("solid", fgColor=DARK)
-DATE_FONT    = Font(bold=True, color=WHITE, size=10)
-EMP_NAME_FONT = Font(bold=True, size=10)
-ASSIGNED_FILL = PatternFill("solid", fgColor=LIGHT_TEAL)
+HEADER_FILL     = PatternFill("solid", fgColor=PURPLE)
+HEADER_FONT     = Font(bold=True, color=WHITE, size=11)
+DATE_FILL       = PatternFill("solid", fgColor=DARK)
+DATE_FONT       = Font(bold=True, color=WHITE, size=10)
+EMP_NAME_FONT   = Font(bold=True, size=10)
+ASSIGNED_FILL   = PatternFill("solid", fgColor=LIGHT_TEAL)
 UNASSIGNED_FILL = PatternFill("solid", fgColor=RED_LIGHT)
-ZEBRA_FILL   = PatternFill("solid", fgColor=GREY_LIGHT)
-THIN_BORDER  = Border(
+ZEBRA_FILL      = PatternFill("solid", fgColor=GREY_LIGHT)
+TOTALS_FILL     = PatternFill("solid", fgColor=LAVENDER)
+TOTALS_FONT     = Font(bold=True, color=DARK, size=10)
+THIN_BORDER = Border(
     left=Side(style="thin", color="D1D5DB"),
     right=Side(style="thin", color="D1D5DB"),
     top=Side(style="thin", color="D1D5DB"),
@@ -41,6 +45,89 @@ THIN_BORDER  = Border(
 )
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 LEFT   = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+# ── Translations ─────────────────────────────────────────────────────────────
+_STRINGS = {
+    "en": {
+        "sheet1": "Employee Schedule",
+        "sheet2": "Shift Schedule",
+        "sheet3": "All Assignments",
+        "sheet4": "Employee Stats",
+        "employee": "Employee",
+        "unassigned": "UNASSIGNED",
+        # Sheet 2 column headers
+        "s2_start": "Start",
+        "s2_end": "End",
+        "s2_skills": "Skills",
+        "s2_employee": "Employee",
+        "s2_cost_hr": "Cost/hr",
+        "s2_shift_cost": "Shift Cost",
+        # Sheet 2 totals row
+        "s2_totals_label": "Day Total",
+        "s2_shifts_fmt": "{n} shifts",
+        "s2_hours_fmt": "{h:.1f} hrs",
+        # Sheet 3 column headers
+        "s3_date": "Date",
+        "s3_start": "Start Time",
+        "s3_end": "End Time",
+        "s3_skills": "Required Skills",
+        "s3_slot": "Slot #",
+        "s3_employee": "Assigned Employee",
+        "s3_cost_hr": "Cost/hr",
+        "s3_shift_cost": "Shift Cost",
+        "s3_dv_error": "Please select an employee from the list",
+        "s3_dv_error_title": "Invalid Employee",
+        "s3_dv_prompt": "Pick an employee or leave as UNASSIGNED",
+        "s3_dv_prompt_title": "Employee",
+        # Sheet 4 column headers
+        "s4_employee": "Employee",
+        "s4_shifts": "Shifts Worked",
+        "s4_hours": "Scheduled Hours",
+        "s4_pay": "Total Pay",
+        "s4_grand_total": "Grand Total",
+    },
+    "es": {
+        "sheet1": "Horario de Empleados",
+        "sheet2": "Horario de Turnos",
+        "sheet3": "Todas las Asignaciones",
+        "sheet4": "Estad\u00edsticas de Empleados",
+        "employee": "Empleado",
+        "unassigned": "SIN ASIGNAR",
+        # Sheet 2
+        "s2_start": "Inicio",
+        "s2_end": "Fin",
+        "s2_skills": "Habilidades",
+        "s2_employee": "Empleado",
+        "s2_cost_hr": "Coste/h",
+        "s2_shift_cost": "Coste del Turno",
+        "s2_totals_label": "Total del D\u00eda",
+        "s2_shifts_fmt": "{n} turnos",
+        "s2_hours_fmt": "{h:.1f} h",
+        # Sheet 3
+        "s3_date": "Fecha",
+        "s3_start": "Hora Inicio",
+        "s3_end": "Hora Fin",
+        "s3_skills": "Habilidades Requeridas",
+        "s3_slot": "Puesto",
+        "s3_employee": "Empleado Asignado",
+        "s3_cost_hr": "Coste/h",
+        "s3_shift_cost": "Coste del Turno",
+        "s3_dv_error": "Por favor selecciona un empleado de la lista",
+        "s3_dv_error_title": "Empleado no v\u00e1lido",
+        "s3_dv_prompt": "Elige un empleado o deja como SIN ASIGNAR",
+        "s3_dv_prompt_title": "Empleado",
+        # Sheet 4
+        "s4_employee": "Empleado",
+        "s4_shifts": "Turnos Trabajados",
+        "s4_hours": "Horas Programadas",
+        "s4_pay": "Salario Total",
+        "s4_grand_total": "Total General",
+    },
+}
+
+
+def _s(lang: str, key: str) -> str:
+    return _STRINGS.get(lang, _STRINGS["en"]).get(key, _STRINGS["en"].get(key, key))
 
 
 def _apply_header(ws, row: int, num_cols: int):
@@ -62,7 +149,6 @@ def _apply_date_banner(ws, row: int, num_cols: int):
 
 
 def _auto_width(ws, col: int, min_w: float = 10, max_w: float = 28):
-    """Set column width based on max content length (capped)."""
     letter = get_column_letter(col)
     best = min_w
     for row in ws.iter_rows(min_col=col, max_col=col, values_only=False):
@@ -70,6 +156,19 @@ def _auto_width(ws, col: int, min_w: float = 10, max_w: float = 28):
         if cell.value:
             best = max(best, min(len(str(cell.value)) + 3, max_w))
     ws.column_dimensions[letter].width = best
+
+
+def _calc_hours(start: str, end: str) -> float:
+    """Calculate shift duration in hours from HH:MM strings."""
+    try:
+        sh, sm = map(int, start.split(":"))
+        eh, em = map(int, end.split(":"))
+        minutes = eh * 60 + em - sh * 60 - sm
+        if minutes < 0:
+            minutes += 24 * 60  # overnight shift
+        return minutes / 60
+    except (ValueError, AttributeError):
+        return 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,12 +179,14 @@ def build_schedule_excel(
     employees: list[dict],
     shifts: list[dict],
     assignments: list[dict],
+    lang: str = "en",
 ) -> bytes:
     wb = openpyxl.Workbook()
 
-    _build_employee_schedule(wb, employees, assignments)
-    _build_shift_schedule(wb, assignments)
-    _build_all_assignments(wb, employees, assignments)
+    _build_employee_schedule(wb, employees, assignments, lang)
+    _build_shift_schedule(wb, assignments, lang)
+    _build_all_assignments(wb, employees, assignments, lang)
+    _build_employee_stats(wb, employees, assignments, lang)
 
     buf = BytesIO()
     wb.save(buf)
@@ -96,32 +197,31 @@ def build_schedule_excel(
 #  SHEET 1 — Employee Schedule (Gantt-like)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_employee_schedule(wb, employees: list[dict], assignments: list[dict]):
+def _build_employee_schedule(wb, employees: list[dict], assignments: list[dict], lang: str):
     ws = wb.active
-    ws.title = "Employee Schedule"
+    ws.title = _s(lang, "sheet1")
 
-    # Build lookup: employee_name → {date → [shift strings]}
+    unassigned_label = _s(lang, "unassigned")
+
     emp_shifts: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     all_dates: set[str] = set()
 
     for a in assignments:
-        name = a.get("employee_name") or "UNASSIGNED"
+        name = a.get("employee_name") or unassigned_label
         d = a.get("date", "")
         start = a.get("start_time", "")
         end = a.get("end_time", "")
         all_dates.add(d)
-        emp_shifts[name][d].append(f"{start}–{end}")
+        emp_shifts[name][d].append(f"{start}\u2013{end}")
 
     sorted_dates = sorted(all_dates)
     emp_names = [e.get("name", "") for e in employees]
 
-    # Header row
-    ws.cell(row=1, column=1, value="Employee")
+    ws.cell(row=1, column=1, value=_s(lang, "employee"))
     for j, d in enumerate(sorted_dates, start=2):
         ws.cell(row=1, column=j, value=d)
     _apply_header(ws, 1, 1 + len(sorted_dates))
 
-    # Employee rows
     for i, name in enumerate(emp_names, start=2):
         ws.cell(row=i, column=1, value=name)
         ws.cell(row=i, column=1).font = EMP_NAME_FONT
@@ -137,18 +237,16 @@ def _build_employee_schedule(wb, employees: list[dict], assignments: list[dict])
             cell.alignment = CENTER
             cell.border = THIN_BORDER
 
-        # Zebra stripe for even rows
         if i % 2 == 0:
             for j in range(1, 2 + len(sorted_dates)):
                 c = ws.cell(row=i, column=j)
                 if not c.fill or c.fill.fgColor.rgb == "00000000":
                     c.fill = ZEBRA_FILL
 
-    # Unassigned row (if any)
-    unassigned_shifts = emp_shifts.get("UNASSIGNED", {})
+    unassigned_shifts = emp_shifts.get(unassigned_label, {})
     if unassigned_shifts:
         r = len(emp_names) + 2
-        ws.cell(row=r, column=1, value="UNASSIGNED")
+        ws.cell(row=r, column=1, value=unassigned_label)
         ws.cell(row=r, column=1).font = Font(bold=True, color="DC2626", size=10)
         ws.cell(row=r, column=1).border = THIN_BORDER
         for j, d in enumerate(sorted_dates, start=2):
@@ -160,74 +258,86 @@ def _build_employee_schedule(wb, employees: list[dict], assignments: list[dict])
             cell.alignment = CENTER
             cell.border = THIN_BORDER
 
-    # Column widths
     ws.column_dimensions["A"].width = 22
     for j in range(2, 2 + len(sorted_dates)):
         ws.column_dimensions[get_column_letter(j)].width = 16
 
-    # Freeze first column + header row
     ws.freeze_panes = "B2"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  SHEET 2 — Shift Schedule (grouped by date)
+#  SHEET 2 — Shift Schedule (grouped by date, with daily totals)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_shift_schedule(wb, assignments: list[dict]):
-    ws = wb.create_sheet("Shift Schedule")
+def _build_shift_schedule(wb, assignments: list[dict], lang: str):
+    ws = wb.create_sheet(_s(lang, "sheet2"))
 
-    # Group assignments by date
+    unassigned_label = _s(lang, "unassigned")
+
     by_date: dict[str, list[dict]] = defaultdict(list)
     for a in assignments:
         by_date[a.get("date", "")].append(a)
 
     sorted_dates = sorted(by_date.keys())
 
-    cols = ["Start", "End", "Skills", "Employee", "Cost/hr", "Shift Cost"]
+    cols = [
+        _s(lang, "s2_start"),
+        _s(lang, "s2_end"),
+        _s(lang, "s2_skills"),
+        _s(lang, "s2_employee"),
+        _s(lang, "s2_cost_hr"),
+        _s(lang, "s2_shift_cost"),
+    ]
     num_cols = len(cols)
 
     row_idx = 1
     for d in sorted_dates:
-        # Date banner row
+        # Date banner
         ws.cell(row=row_idx, column=1, value=d)
         ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=num_cols)
         _apply_date_banner(ws, row_idx, num_cols)
         row_idx += 1
 
-        # Column headers under each date group
+        # Column headers
         for c, h in enumerate(cols, start=1):
             ws.cell(row=row_idx, column=c, value=h)
         _apply_header(ws, row_idx, num_cols)
         row_idx += 1
 
-        # Sort shifts by start_time, then slot_index
         day_shifts = sorted(
             by_date[d],
             key=lambda x: (x.get("start_time", ""), x.get("slot_index", 0)),
         )
 
+        day_total_hours = 0.0
+        day_total_cost  = 0.0
+        day_shift_count = len(day_shifts)
+
         for a in day_shifts:
             skills = a.get("required_skills", [])
             skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
-            emp_name = a.get("employee_name") or "UNASSIGNED"
+            emp_name = a.get("employee_name") or unassigned_label
             cost_h = a.get("cost_per_hour", 0)
             shift_cost = a.get("shift_cost", 0)
+
+            hours = _calc_hours(a.get("start_time", ""), a.get("end_time", ""))
+            day_total_hours += hours
+            day_total_cost  += shift_cost or 0
 
             row_data = [
                 a.get("start_time", ""),
                 a.get("end_time", ""),
                 skills_str,
                 emp_name,
-                f"€{cost_h:.2f}" if cost_h else "",
-                f"€{shift_cost:.2f}" if shift_cost else "",
+                f"\u20ac{cost_h:.2f}" if cost_h else "",
+                f"\u20ac{shift_cost:.2f}" if shift_cost else "",
             ]
             for c, val in enumerate(row_data, start=1):
                 cell = ws.cell(row=row_idx, column=c, value=val)
                 cell.alignment = CENTER
                 cell.border = THIN_BORDER
 
-            # Highlight unassigned shifts
-            if emp_name == "UNASSIGNED":
+            if emp_name == unassigned_label:
                 for c in range(1, num_cols + 1):
                     ws.cell(row=row_idx, column=c).fill = UNASSIGNED_FILL
             elif row_idx % 2 == 0:
@@ -236,10 +346,28 @@ def _build_shift_schedule(wb, assignments: list[dict]):
 
             row_idx += 1
 
-        # Blank spacer row between dates
+        # Daily totals row
+        shifts_fmt = _s(lang, "s2_shifts_fmt").format(n=day_shift_count)
+        hours_fmt  = _s(lang, "s2_hours_fmt").format(h=day_total_hours)
+        totals_data = [
+            _s(lang, "s2_totals_label"),
+            "",
+            shifts_fmt,
+            hours_fmt,
+            "",
+            f"\u20ac{day_total_cost:.2f}",
+        ]
+        for c, val in enumerate(totals_data, start=1):
+            cell = ws.cell(row=row_idx, column=c, value=val)
+            cell.fill = TOTALS_FILL
+            cell.font = TOTALS_FONT
+            cell.alignment = CENTER
+            cell.border = THIN_BORDER
         row_idx += 1
 
-    # Column widths
+        # Spacer
+        row_idx += 1
+
     widths = [10, 10, 30, 22, 12, 12]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
@@ -249,17 +377,24 @@ def _build_shift_schedule(wb, assignments: list[dict]):
 #  SHEET 3 — All Assignments (flat, editable)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_all_assignments(wb, employees: list[dict], assignments: list[dict]):
-    ws = wb.create_sheet("All Assignments")
+def _build_all_assignments(wb, employees: list[dict], assignments: list[dict], lang: str):
+    ws = wb.create_sheet(_s(lang, "sheet3"))
+
+    unassigned_label = _s(lang, "unassigned")
 
     headers = [
-        "Date", "Start Time", "End Time", "Required Skills",
-        "Slot #", "Assigned Employee", "Cost/hr", "Shift Cost",
+        _s(lang, "s3_date"),
+        _s(lang, "s3_start"),
+        _s(lang, "s3_end"),
+        _s(lang, "s3_skills"),
+        _s(lang, "s3_slot"),
+        _s(lang, "s3_employee"),
+        _s(lang, "s3_cost_hr"),
+        _s(lang, "s3_shift_cost"),
     ]
     ws.append(headers)
     _apply_header(ws, 1, len(headers))
 
-    # Build employee name list for data validation dropdown
     emp_names = sorted({e.get("name", "") for e in employees})
     emp_list_str = ",".join(emp_names) if emp_names else ""
 
@@ -271,7 +406,7 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict]):
     for i, a in enumerate(sorted_assignments):
         skills = a.get("required_skills", [])
         skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
-        emp_name = a.get("employee_name") or "UNASSIGNED"
+        emp_name = a.get("employee_name") or unassigned_label
         cost_h = a.get("cost_per_hour", 0)
         shift_cost = a.get("shift_cost", 0)
 
@@ -288,20 +423,18 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict]):
         ws.append(row)
         r = ws.max_row
 
-        # Style
         for c in range(1, len(headers) + 1):
             cell = ws.cell(row=r, column=c)
             cell.alignment = CENTER
             cell.border = THIN_BORDER
 
-        if emp_name == "UNASSIGNED":
+        if emp_name == unassigned_label:
             for c in range(1, len(headers) + 1):
                 ws.cell(row=r, column=c).fill = UNASSIGNED_FILL
         elif i % 2 == 0:
             for c in range(1, len(headers) + 1):
                 ws.cell(row=r, column=c).fill = ZEBRA_FILL
 
-    # Data validation dropdown on the "Assigned Employee" column (F)
     if emp_list_str and len(sorted_assignments) > 0:
         from openpyxl.worksheet.datavalidation import DataValidation
         dv = DataValidation(
@@ -310,23 +443,106 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict]):
             allow_blank=True,
             showDropDown=False,
         )
-        dv.error = "Please select an employee from the list"
-        dv.errorTitle = "Invalid Employee"
-        dv.prompt = "Pick an employee or leave as UNASSIGNED"
-        dv.promptTitle = "Employee"
+        dv.error       = _s(lang, "s3_dv_error")
+        dv.errorTitle  = _s(lang, "s3_dv_error_title")
+        dv.prompt      = _s(lang, "s3_dv_prompt")
+        dv.promptTitle = _s(lang, "s3_dv_prompt_title")
         last_row = 1 + len(sorted_assignments)
         dv.add(f"F2:F{last_row}")
         ws.add_data_validation(dv)
 
-    # Column widths
     widths = [14, 13, 13, 30, 8, 24, 12, 12]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
-    # Freeze header row
     ws.freeze_panes = "A2"
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  SHEET 4 — Employee stats (Estimated hours, costs, etc.)
-# -────────────────────────────────────────────────────────────────────────────
-# (Not implemented yet, but could be added in the future)
+#  SHEET 4 — Employee Stats (scheduled hours and pay)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_employee_stats(wb, employees: list[dict], assignments: list[dict], lang: str):
+    ws = wb.create_sheet(_s(lang, "sheet4"))
+
+    headers = [
+        _s(lang, "s4_employee"),
+        _s(lang, "s4_shifts"),
+        _s(lang, "s4_hours"),
+        _s(lang, "s4_pay"),
+    ]
+    ws.append(headers)
+    _apply_header(ws, 1, len(headers))
+
+    # Aggregate per employee (named employees only, skip unassigned)
+    emp_names_ordered = [e.get("name", "") for e in employees]
+    stats: dict[str, dict] = {
+        name: {"shifts": 0, "hours": 0.0, "pay": 0.0}
+        for name in emp_names_ordered
+        if name
+    }
+
+    for a in assignments:
+        name = a.get("employee_name")
+        if not name or name not in stats:
+            continue
+        hours = _calc_hours(a.get("start_time", ""), a.get("end_time", ""))
+        stats[name]["shifts"] += 1
+        stats[name]["hours"]  += hours
+        stats[name]["pay"]    += a.get("shift_cost", 0) or 0
+
+    grand_shifts = 0
+    grand_hours  = 0.0
+    grand_pay    = 0.0
+
+    for i, name in enumerate(emp_names_ordered):
+        if not name or name not in stats:
+            continue
+        row_stats = stats[name]
+        grand_shifts += row_stats["shifts"]
+        grand_hours  += row_stats["hours"]
+        grand_pay    += row_stats["pay"]
+
+        row_data = [
+            name,
+            row_stats["shifts"],
+            round(row_stats["hours"], 2),
+            f"\u20ac{row_stats['pay']:.2f}",
+        ]
+        ws.append(row_data)
+        r = ws.max_row
+
+        for c in range(1, len(headers) + 1):
+            cell = ws.cell(row=r, column=c)
+            cell.alignment = CENTER
+            cell.border = THIN_BORDER
+            if c == 1:
+                cell.font = EMP_NAME_FONT
+                cell.alignment = LEFT
+
+        if i % 2 == 0:
+            for c in range(1, len(headers) + 1):
+                ws.cell(row=r, column=c).fill = ZEBRA_FILL
+
+    # Grand totals row
+    totals_row = [
+        _s(lang, "s4_grand_total"),
+        grand_shifts,
+        round(grand_hours, 2),
+        f"\u20ac{grand_pay:.2f}",
+    ]
+    ws.append(totals_row)
+    r = ws.max_row
+    for c in range(1, len(headers) + 1):
+        cell = ws.cell(row=r, column=c)
+        cell.fill = TOTALS_FILL
+        cell.font = TOTALS_FONT
+        cell.alignment = CENTER
+        cell.border = THIN_BORDER
+    ws.cell(row=r, column=1).alignment = LEFT
+
+    widths = [26, 18, 20, 16]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    ws.freeze_panes = "A2"

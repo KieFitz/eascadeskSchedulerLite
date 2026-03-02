@@ -29,10 +29,12 @@ async def export_schedule(
     if run.status != "completed" or not run.result_data:
         raise HTTPException(status_code=400, detail="Schedule has not been solved yet")
 
+    lang = "es" if current_user.country == "ES" else "en"
     xlsx_bytes = build_schedule_excel(
         employees=run.employees_data or [],
         shifts=run.shifts_data or [],
         assignments=run.result_data.get("assignments", []),
+        lang=lang,
     )
 
     filename = f"schedule_{run.year}_{run.month:02d}_{run_id[:8]}.xlsx"

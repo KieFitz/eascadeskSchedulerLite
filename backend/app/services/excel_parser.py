@@ -14,6 +14,81 @@ AVAILABILITY_REQUIRED_COLS = {"Employee", "Type", "Day / Date"}
 VALID_AVAIL_TYPES = {"Preferred", "Unpreferred", "Unavailable"}
 WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
+# ── Spanish → English normalisation maps ─────────────────────────────────────
+
+# Sheet name aliases (Spanish → canonical English)
+_SHEET_ALIASES: dict[str, str] = {
+    "empleados":      "Employees",
+    "disponibilidad": "Availability",
+    "turnos":         "Shifts",
+}
+
+# Column header aliases (lowercase Spanish → canonical English header)
+_COLUMN_ALIASES: dict[str, str] = {
+    # Employees sheet
+    "nombre":              "Name",
+    "habilidades":         "Skills",
+    "horas mín/semana":    "Min Hours/Week",
+    "horas min/semana":    "Min Hours/Week",
+    "coste por hora":      "Cost Per Hour",
+    # Availability sheet
+    "empleado":            "Employee",
+    "tipo":                "Type",
+    "día / fecha":         "Day / Date",
+    "dia / fecha":         "Day / Date",
+    "hora inicio":         "Start Time",
+    "hora fin":            "End Time",
+    # Shifts sheet
+    "fecha":               "Date",
+    "habilidades requeridas": "Required Skills",
+    "personal mín":        "Min Staff",
+    "personal min":        "Min Staff",
+}
+
+# Weekday aliases (lowercase Spanish → English)
+_WEEKDAY_ALIASES: dict[str, str] = {
+    "lunes":      "Monday",
+    "martes":     "Tuesday",
+    "miércoles":  "Wednesday",
+    "miercoles":  "Wednesday",
+    "jueves":     "Thursday",
+    "viernes":    "Friday",
+    "sábado":     "Saturday",
+    "sabado":     "Saturday",
+    "domingo":    "Sunday",
+}
+
+# Availability type aliases (lowercase Spanish → English)
+_AVAIL_TYPE_ALIASES: dict[str, str] = {
+    "preferido":      "Preferred",
+    "no preferido":   "Unpreferred",
+    "no disponible":  "Unavailable",
+}
+
+
+def _canonical_sheet(name: str) -> str:
+    """Return the canonical English sheet name, or the original if not aliased."""
+    return _SHEET_ALIASES.get(name.lower().strip(), name)
+
+
+def _normalise_headers(headers: list[str]) -> list[str]:
+    """Map Spanish column headers to their English canonical form."""
+    out = []
+    for h in headers:
+        key = (h or "").strip().lower()
+        out.append(_COLUMN_ALIASES.get(key, h))
+    return out
+
+
+def _normalise_weekday(val: str) -> str:
+    """Return the English weekday name for either English or Spanish input."""
+    return _WEEKDAY_ALIASES.get(val.lower().strip(), val)
+
+
+def _normalise_avail_type(val: str) -> str:
+    """Return the English availability type for either English or Spanish input."""
+    return _AVAIL_TYPE_ALIASES.get(val.lower().strip(), val)
+
 
 def _to_time_str(val: Any) -> str:
     """Normalise an openpyxl time/string cell value to 'HH:MM'."""
@@ -47,18 +122,21 @@ def parse_excel(file_bytes: bytes, plan: str) -> dict:
     """
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
 
-    if "Employees" not in wb.sheetnames:
-        raise ValueError("Missing sheet: 'Employees'")
-    if "Shifts" not in wb.sheetnames:
-        raise ValueError("Missing sheet: 'Shifts'")
+    # Build a canonical-name → sheet object map so Spanish sheet names are accepted
+    sheet_map: dict[str, Any] = {_canonical_sheet(n): wb[n] for n in wb.sheetnames}
+
+    if "Employees" not in sheet_map:
+        raise ValueError("Missing sheet: 'Employees' (or 'Empleados')")
+    if "Shifts" not in sheet_map:
+        raise ValueError("Missing sheet: 'Shifts' (or 'Turnos')")
 
     # Parse availability first so we can attach it to employees by name
     availability: dict[str, dict] = {}  # name.lower() → {preferred, unpreferred, unavailable}
-    if "Availability" in wb.sheetnames:
-        availability = _parse_availability(wb["Availability"])
+    if "Availability" in sheet_map:
+        availability = _parse_availability(sheet_map["Availability"])
 
-    employees = _parse_employees(wb["Employees"], availability)
-    shifts = _parse_shifts(wb["Shifts"], plan)
+    employees = _parse_employees(sheet_map["Employees"], availability)
+    shifts = _parse_shifts(sheet_map["Shifts"], plan)
 
     if not employees:
         raise ValueError("No employees found in the Employees sheet")
@@ -74,7 +152,7 @@ def _parse_employees(ws, availability: dict) -> list[dict]:
     if not rows:
         raise ValueError("Employees sheet is empty")
 
-    headers = [str(h).strip() if h else "" for h in rows[0]]
+    headers = _normalise_headers([str(h).strip() if h else "" for h in rows[0]])
     missing = EMPLOYEE_REQUIRED_COLS - set(headers)
     if missing:
         raise ValueError(f"Employees sheet missing required columns: {missing}")
@@ -136,7 +214,7 @@ def _parse_availability(ws) -> dict:
     if len(rows) < 2:
         return {}
 
-    headers = [str(h).strip() if h else "" for h in rows[0]]
+    headers = _normalise_headers([str(h).strip() if h else "" for h in rows[0]])
     missing = AVAILABILITY_REQUIRED_COLS - set(headers)
     if missing:
         raise ValueError(f"Availability sheet missing required columns: {missing}")
@@ -157,18 +235,18 @@ def _parse_availability(ws) -> dict:
         if employee_str.lower().startswith("must match"):
             continue
 
-        av_type_str = str(av_type).strip()
+        av_type_str = _normalise_avail_type(str(av_type).strip())
         if av_type_str not in VALID_AVAIL_TYPES:
             raise ValueError(
-                f"Availability row {i}: Type must be one of {VALID_AVAIL_TYPES}, got '{av_type_str}'"
+                f"Availability row {i}: Type must be one of {VALID_AVAIL_TYPES}, got '{av_type}'"
             )
 
-        day_str = str(day_or_date).strip()
+        day_str = _normalise_weekday(str(day_or_date).strip())
         # Validate day/date value
         if day_str not in WEEKDAY_NAMES and not _is_date_string(day_str):
             raise ValueError(
-                f"Availability row {i}: Day/Date '{day_str}' must be a weekday name "
-                f"(e.g. 'Monday') or a date in YYYY-MM-DD format."
+                f"Availability row {i}: Day/Date '{day_or_date}' must be a weekday name "
+                f"(e.g. 'Monday' / 'Lunes') or a date in YYYY-MM-DD format."
             )
 
         start_str = None
@@ -209,7 +287,7 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
     if not rows:
         raise ValueError("Shifts sheet is empty")
 
-    headers = [str(h).strip() if h else "" for h in rows[0]]
+    headers = _normalise_headers([str(h).strip() if h else "" for h in rows[0]])
     missing = SHIFT_REQUIRED_COLS - set(headers)
     if missing:
         raise ValueError(f"Shifts sheet missing required columns: {missing}")
