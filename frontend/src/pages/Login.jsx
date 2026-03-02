@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import toast from 'react-hot-toast'
+import logo from '../assets/logo.png'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -32,9 +33,9 @@ export default function Login() {
           {/* Gradient header */}
           <div className="bg-gradient-to-r from-brand-purple to-brand-purple-light px-8 py-8 text-center">
             <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center mx-auto mb-3">
-              <span className="text-white font-bold text-xl">E</span>
+                <img src={logo} alt="Eascadesk Logo" className="h-6 w-auto" />
             </div>
-            <h1 className="text-white font-semibold text-xl">Eascadesk Scheduler</h1>
+            <h1 className="text-white font-semibold text-xl">Eascadesk Scheduler Lite</h1>
             <p className="text-white/70 text-sm mt-1">Sign in to your account</p>
           </div>
 
