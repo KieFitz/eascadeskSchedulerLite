@@ -32,10 +32,10 @@ export default function Login() {
         <div className="bg-white rounded-xl shadow-card overflow-hidden">
           {/* Gradient header */}
           <div className="bg-gradient-to-r from-brand-purple to-brand-purple-light px-8 py-8 text-center">
-            <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center mx-auto mb-3">
-                <img src={logo} alt="Eascadesk Logo" className="h-6 w-auto" />
+            <div className="flex items-center justify-center mx-auto mb-3">
+                <img src={logo} alt="Eascadesk Logo" className="h-12 w-auto rounded-md" />
             </div>
-            <h1 className="text-white font-semibold text-xl">Eascadesk Scheduler Lite</h1>
+            <h1 className="text-white font-semibold text-xl">Eascadesk Scheduler</h1>
             <p className="text-white/70 text-sm mt-1">Sign in to your account</p>
           </div>
 
