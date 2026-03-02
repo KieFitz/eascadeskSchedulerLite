@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { CalendarDaysIcon, ScaleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
 import Badge from '../common/Badge'
+import logo from '../../assets/logo.png'
 
 const navItems = [
   { to: '/', label: 'Schedule', Icon: CalendarDaysIcon },
@@ -16,8 +17,12 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-6 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-brand-purple flex items-center justify-center">
-            <span className="text-white font-bold text-base">E</span>
+          <div className="h-9 w-9 rounded flex items-center justify-center">
+            <img
+            src={logo}
+            alt="Eascadesk"
+            className="h-9 w-9 rounded-lg object-contain bg-white/5 p-1"
+          />
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">Eascadesk</p>
