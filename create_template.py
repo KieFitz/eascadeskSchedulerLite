@@ -78,7 +78,7 @@ def create_template():
         ["Alice Johnson", "cashier, first_aid, manager",          32, 14.50],
         ["Bob Smith",     "cashier, customer_service",            20, 12.00],
         ["Carol White",   "cashier, customer_service, first_aid", 24, 12.00],
-        ["David Brown",   "customer_service",                     16, 11.50],
+        ["David Brown",   "cashier",                              16, 11.50],
         ["Eve Davis",     "cashier, first_aid",                   40, 15.00],
     ]
     for row in sample_employees:
