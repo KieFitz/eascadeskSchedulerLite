@@ -254,7 +254,7 @@ export default function Home() {
             <div>
               <h2 className="font-semibold text-dark">Schedule Preview</h2>
               <p className="text-xs text-muted mt-0.5">
-                {employees.length} employees · {[...new Set(shifts.map(s => s.date))].length} days
+                {employees.length} employees · {shifts.length} shifts · {[...new Set(shifts.map(s => s.date))].length} days
                 {solved && scoreInfo && (() => {
                   const hasHard = scoreInfo.includes('-') && !scoreInfo.startsWith('0hard')
                   return (
@@ -312,7 +312,7 @@ export default function Home() {
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Spinner size="lg" />
               <p className="text-sm text-muted">
-                Timefold is optimising your schedule…
+                EascaDesk is optimising your schedule…
               </p>
             </div>
           ) : (
