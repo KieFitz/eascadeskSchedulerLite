@@ -325,3 +325,8 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict]):
 
     # Freeze header row
     ws.freeze_panes = "A2"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SHEET 4 — Employee stats (Estimated hours, costs, etc.)
+# -────────────────────────────────────────────────────────────────────────────
+# (Not implemented yet, but could be added in the future)
