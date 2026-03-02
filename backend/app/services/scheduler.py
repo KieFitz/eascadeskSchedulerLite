@@ -13,7 +13,7 @@ from timefold.solver.config import (
 
 from app.core.config import settings
 from timefold_model.domain import Employee, ScheduleSolution, Shift, ShiftAssignment
-from timefold_model.constraints import define_constraints
+from timefold_model.constraints import define_constraints, set_country_config
 
 
 def _build_solver():
@@ -30,7 +30,14 @@ def _build_solver():
     return SolverFactory.create(config).build_solver()
 
 
-def _solve_sync(employees_data: list[dict], shifts_data: list[dict]) -> dict:
+def _solve_sync(
+    employees_data: list[dict],
+    shifts_data: list[dict],
+    country: str | None = None,
+) -> dict:
+    # Apply the country's labour-law constraint config before building the solver
+    set_country_config(country)
+
     employees = [
         Employee(
             id=e["id"],
@@ -44,6 +51,9 @@ def _solve_sync(employees_data: list[dict], shifts_data: list[dict]) -> dict:
         )
         for e in employees_data
     ]
+
+    # Build a lookup so we can attach cost_per_hour to result assignments
+    emp_cost_map: dict[str, float] = {e.id: e.cost_per_hour for e in employees}
 
     assignments = []
     for s in shifts_data:
@@ -63,22 +73,31 @@ def _solve_sync(employees_data: list[dict], shifts_data: list[dict]) -> dict:
 
     result_assignments = []
     for a in solution.shift_assignments:
+        duration_h = a.shift.duration_hours() if a.shift else 0.0
+        cost_per_h = emp_cost_map.get(a.employee.id, 0.0) if a.employee else 0.0
         result_assignments.append({
-            "shift_id": a.shift.id if a.shift else None,
-            "date": str(a.shift.date) if a.shift else None,
-            "start_time": str(a.shift.start_time) if a.shift else None,
-            "end_time": str(a.shift.end_time) if a.shift else None,
+            "shift_id":      a.shift.id if a.shift else None,
+            "date":          str(a.shift.date) if a.shift else None,
+            "start_time":    str(a.shift.start_time) if a.shift else None,
+            "end_time":      str(a.shift.end_time) if a.shift else None,
             "required_skills": a.shift.required_skills if a.shift else [],
-            "slot_index": a.shift.slot_index if a.shift else None,
-            "employee_id": a.employee.id if a.employee else None,
+            "slot_index":    a.shift.slot_index if a.shift else None,
+            "employee_id":   a.employee.id if a.employee else None,
             "employee_name": a.employee.name if a.employee else None,
+            # Cost passthrough — not used by the solver, exposed for frontend stats
+            "cost_per_hour": cost_per_h,
+            "shift_cost":    round(cost_per_h * duration_h, 2),
         })
 
     score_str = str(solution.score) if solution.score else "unknown"
     return {"assignments": result_assignments, "score": score_str}
 
 
-async def solve_async(employees_data: list[dict], shifts_data: list[dict]) -> dict:
+async def solve_async(
+    employees_data: list[dict],
+    shifts_data: list[dict],
+    country: str | None = None,
+) -> dict:
     """Run the solver in a thread-pool so it doesn't block the event loop."""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _solve_sync, employees_data, shifts_data)
+    return await loop.run_in_executor(None, _solve_sync, employees_data, shifts_data, country)

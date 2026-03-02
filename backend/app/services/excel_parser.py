@@ -217,6 +217,10 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
     idx = _row_idx(headers)
     cutoff = max_shift_date(plan)
     shifts = []
+    # Accumulates the next available slot index per (date, start_time) key.
+    # Must persist across rows so two rows with the same date+time never produce
+    # the same slot number (which would cause a Timefold PlanningId collision).
+    slot_counters: dict[str, int] = {}
 
     for i, row in enumerate(rows[1:], start=2):
         raw_date = row[idx["Date"]]
@@ -257,15 +261,18 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
         end_str = _to_time_str(raw_end)
         base_id = f"{shift_date}_{start_str}"
 
-        for slot in range(min_staff):
-            shift_id = f"{base_id}_slot{slot}"
+        # Start from the next available slot for this date+time key
+        first_slot = slot_counters.get(base_id, 0)
+        for offset in range(min_staff):
+            global_slot = first_slot + offset
             shifts.append({
-                "id": shift_id,
+                "id": f"{base_id}_slot{global_slot}",
                 "date": str(shift_date),
                 "start_time": start_str,
                 "end_time": end_str,
                 "required_skills": required_skills,
-                "slot_index": slot,
+                "slot_index": global_slot,
             })
+        slot_counters[base_id] = first_slot + min_staff
 
     return shifts

@@ -60,7 +60,7 @@ async def solve(
     await db.commit()
 
     try:
-        result_data = await solve_async(run.employees_data, run.shifts_data)
+        result_data = await solve_async(run.employees_data, run.shifts_data, country=current_user.country)
         run.status = "completed"
         run.result_data = result_data
         run.score_info = result_data.get("score", "")
