@@ -75,11 +75,11 @@ def create_template():
     _freeze(ws_emp, "A3")
 
     sample_employees = [
-        ["Alice Johnson", "cashier, first_aid, manager",          32, 14.50],
+        ["Alice Johnson", "cashier, first_aid, manager",          18, 14.50],
         ["Bob Smith",     "cashier, customer_service",            20, 12.00],
-        ["Carol White",   "cashier, customer_service, first_aid", 24, 12.00],
+        ["Carol White",   "cashier, customer_service, first_aid", 22, 12.00],
         ["David Brown",   "cashier",                              16, 11.50],
-        ["Eve Davis",     "cashier, first_aid",                   40, 15.00],
+        ["Eve Davis",     "cashier, first_aid",                   21, 15.00],
     ]
     for row in sample_employees:
         ws_emp.append(row)
@@ -182,8 +182,8 @@ def create_template():
         d = (today + timedelta(days=i)).strftime("%Y-%m-%d")
         rows = [
             [d, "08:00", "16:00", "cashier, first_aid", 1],
-            [d, "08:00", "16:00", "cashier",             2],
-            [d, "14:00", "22:00", "cashier",             2],
+            [d, "08:00", "16:00", "cashier",             1],
+            [d, "14:00", "22:00", "cashier",             1],
         ]
         for row in rows:
             ws_shifts.append(row)
