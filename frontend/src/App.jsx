@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Home from './pages/Home'
 import Rules from './pages/Rules'
+import Pricing from './pages/Pricing'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -28,6 +29,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Rules />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pricing"
+        element={
+          <ProtectedRoute>
+            <Pricing />
           </ProtectedRoute>
         }
       />

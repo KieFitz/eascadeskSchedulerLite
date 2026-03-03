@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str = "whsec_PLACEHOLDER"
     STRIPE_PRICE_ID: str = "price_PLACEHOLDER"
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/?payment=success"
-    STRIPE_CANCEL_URL: str = "http://localhost:5173/?payment=cancelled"
+    STRIPE_CANCEL_URL: str = "http://localhost:5173/pricing?payment=cancelled"
 
     SOLVER_TIMEOUT_SECONDS: int = 30
 

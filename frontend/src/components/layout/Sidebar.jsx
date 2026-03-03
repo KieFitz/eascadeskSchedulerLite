@@ -1,5 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDaysIcon, ScaleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline'
+import {
+  CalendarDaysIcon,
+  ScaleIcon,
+  ArrowRightStartOnRectangleIcon,
+  StarIcon,
+  CreditCardIcon,
+} from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
 import { useTranslations } from '../../i18n'
 import Badge from '../common/Badge'
@@ -8,6 +14,7 @@ import logo from '../../assets/logo.png'
 export default function Sidebar() {
   const { user, logout } = useAuth()
   const { t } = useTranslations(user?.country)
+  const isPro = user?.plan === 'paid'
 
   const navItems = [
     { to: '/', label: t('navSchedule'), Icon: CalendarDaysIcon },
@@ -21,10 +28,10 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded flex items-center justify-center">
             <img
-            src={logo}
-            alt="Eascadesk"
-            className="h-9 w-9 rounded-lg object-contain bg-white/5 p-1"
-          />
+              src={logo}
+              alt="Eascadesk"
+              className="h-9 w-9 rounded-lg object-contain bg-white/5 p-1"
+            />
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">Eascadesk</p>
@@ -53,6 +60,30 @@ export default function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        {/* Upgrade / Billing link */}
+        <NavLink
+          to="/pricing"
+          className={({ isActive }) =>
+            [
+              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mt-1',
+              isActive
+                ? isPro
+                  ? 'bg-brand-teal/20 text-brand-teal'
+                  : 'bg-brand-purple text-white'
+                : isPro
+                ? 'text-white/60 hover:text-white hover:bg-white/10'
+                : 'text-brand-teal hover:text-white hover:bg-brand-teal/20',
+            ].join(' ')
+          }
+        >
+          {isPro ? (
+            <CreditCardIcon className="h-5 w-5 flex-shrink-0" />
+          ) : (
+            <StarIcon className="h-5 w-5 flex-shrink-0" />
+          )}
+          {isPro ? 'Billing' : 'Upgrade to Pro'}
+        </NavLink>
       </nav>
 
       {/* User / Plan / Logout */}
@@ -62,7 +93,7 @@ export default function Sidebar() {
             <p className="text-white text-xs font-medium truncate">{user.username}</p>
             <p className="text-white/50 text-xs truncate">{user.email}</p>
             <div className="mt-1.5">
-              {user.plan === 'paid' ? (
+              {isPro ? (
                 <Badge colour="teal">Pro</Badge>
               ) : (
                 <Badge colour="gray">Free</Badge>
