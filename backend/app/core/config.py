@@ -13,14 +13,14 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = "sk_test_PLACEHOLDER"
     STRIPE_WEBHOOK_SECRET: str = "whsec_PLACEHOLDER"
     STRIPE_PRICE_ID: str = "price_PLACEHOLDER"
-    STRIPE_SUCCESS_URL: str = "https://schedule-lite.eascadesk.ie/?payment=success"
-    STRIPE_CANCEL_URL: str = "https://schedule-lite.eascadesk.ie/pricing?payment=cancelled"
+    STRIPE_SUCCESS_URL: str = "https://scheduler-lite.eascadesk.ie/?payment=success"
+    STRIPE_CANCEL_URL: str = "https://scheduler-lite.eascadesk.ie/pricing?payment=cancelled"
 
     SOLVER_TIMEOUT_SECONDS: int = 30
 
     # Comma-separated allowed CORS origins.
     # e.g. "https://d123.cloudfront.net,http://localhost:5173"
-    ALLOWED_ORIGINS: str = "http://localhost:5173, https://schedule-lite.eascadesk.ie"
+    ALLOWED_ORIGINS: str = "http://localhost:5173, https://scheduler-lite.eascadesk.ie"
 
     @property
     def allowed_origins_list(self) -> list[str]:
