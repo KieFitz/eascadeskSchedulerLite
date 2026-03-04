@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Login — Eascadesk</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #14162B;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 380px;
+    }
+    .logo { text-align: center; margin-bottom: 2rem; }
+    .logo h1 { font-size: 1.25rem; font-weight: 700; color: #fff; }
+    .logo p { font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    label { display: block; font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 6px; }
+    input[type=email], input[type=password] {
+      width: 100%;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      color: #fff;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #4D3DB7; }
+    .field { margin-bottom: 1rem; }
+    .btn {
+      width: 100%;
+      background: #4D3DB7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #3d2fa0; }
+    .error {
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 0.6rem 0.85rem;
+      font-size: 0.8rem;
+      color: #fca5a5;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <h1>Eascadesk Admin</h1>
+      <p>Scheduler Lite</p>
+    </div>
+    {% if error %}
+    <div class="error">{{ error | replace('+', ' ') }}</div>
+    {% endif %}
+    <form method="post" action="/admin/login">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autofocus />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required />
+      </div>
+      <button type="submit" class="btn">Sign in</button>
+    </form>
+  </div>
+</body>
+</html>

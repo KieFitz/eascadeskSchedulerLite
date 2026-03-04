@@ -18,9 +18,11 @@ class Settings(BaseSettings):
 
     SOLVER_TIMEOUT_SECONDS: int = 30
 
+    ADMIN_EMAIL: str = ""
+
     # Comma-separated allowed CORS origins.
     # e.g. "https://d123.cloudfront.net,http://localhost:5173"
-    ALLOWED_ORIGINS: str = "http://localhost:5173, https://scheduler-lite.eascadesk.ie"
+    ALLOWED_ORIGINS: str = "http://localhost:5173,https://scheduler-lite.eascadesk.ie"
 
     @property
     def allowed_origins_list(self) -> list[str]:

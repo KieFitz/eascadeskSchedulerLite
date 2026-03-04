@@ -18,6 +18,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     plan: Mapped[str] = mapped_column(
         Enum("free", "paid", name="plan_enum"), default="free", nullable=False
     )
