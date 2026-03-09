@@ -257,7 +257,7 @@ sudo dnf install -y docker-compose-plugin
 
 ```bash
 # Clone repo
-git clone <your-repo-url>
+git clone <the repo>
 cd eascadeskSchedulerLite
 
 # Create .env from example
@@ -345,9 +345,6 @@ docker compose -f docker-compose.prod.yml restart backend
 ---------------------------------------------------
 
 - [ ] **Industry-specific templates** — Pre-built Excel templates for common industries (hospitality, retail, healthcare, logistics) with realistic shift patterns, skill sets, and availability structures
-- [ ] **Recurring schedule rules** — Define repeating weekly patterns without re-uploading each time
-- [ ] **Multi-location support** — Assign employees and shifts across multiple sites
-- [ ] **Email notifications** — Notify employees of their assigned schedules
 - [ ] **Schedule comparison** — Diff two solve runs to highlight what changed
 - [ ] **Availability self-service** — Employee portal to submit their own availability
 - [ ] **Calendar integrations** — Export to Google Calendar / Outlook
