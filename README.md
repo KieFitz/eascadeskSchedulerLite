@@ -244,9 +244,10 @@ sudo usermod -aG docker ec2-user
 
 # Fix buildx (manual update required on Amazon Linux 2023)
 mkdir -p ~/.docker/cli-plugins
-curl -SL https://github.com/docker/buildx/releases/latest/download/buildx-linux-amd64 \
-  -o ~/.docker/cli-plugins/docker-buildx
+sudo curl -SL "https://github.com/docker/buildx/releases/download/v0.21.0/buildx-v0.21.0.linux-${ARCH}"   -o /usr/local/lib/docker/cli-plugins/docker-buildx
+-o ~/.docker/cli-plugins/docker-buildx
 chmod +x ~/.docker/cli-plugins/docker-buildx
+docker buildx version
 
 # Install Docker Compose plugin
 sudo dnf install -y docker-compose-plugin
