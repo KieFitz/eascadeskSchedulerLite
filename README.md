@@ -7,10 +7,10 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 
-![CascadeScheduler dashboard](https://github.com/user-attachments/assets/52f48ea6-612b-498a-8a52-2e5761272b2d)
-![CascadeScheduler schedule view](https://github.com/user-attachments/assets/4d211b3c-a876-43b4-9f15-4b1aa270d416)
-![CascadeScheduler upload flow](https://github.com/user-attachments/assets/91362609-a991-4cf6-8465-726850c19947)
-![CascadeScheduler export](https://github.com/user-attachments/assets/a1449bd7-96a1-4e0b-a7ca-fa682de24a8f)
+![CascadeScheduler dashboard](https://github.com/user-attachments/assets/4d211b3c-a876-43b4-9f15-4b1aa270d416)
+![CascadeScheduler schedule view](https://github.com/user-attachments/assets/91362609-a991-4cf6-8465-726850c19947)
+![CascadeScheduler upload flow](https://github.com/user-attachments/assets/a1449bd7-96a1-4e0b-a7ca-fa682de24a8f)
+![CascadeScheduler export](https://github.com/user-attachments/assets/52f48ea6-612b-498a-8a52-2e5761272b2d)
 
 ---
 
