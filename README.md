@@ -18,7 +18,7 @@
 
 Small businesses — cafés, retail shops, clinics — deal with genuinely complex scheduling problems every week: matching staff availability against shift requirements, respecting minimum-hours contracts, and minimising labour costs. Enterprise workforce tools are too expensive and too complex for them. Spreadsheets don't scale.
 
-I built CascadeScheduler Lite to solve this with a constraint solver (Timefold) behind a simple interface: staff upload an Excel file they already understand, the solver runs, and a ready-to-use schedule comes back in seconds. The core challenge was integrating a JVM-backed constraint solver with a modern async Python web stack while keeping the input flow familiar for businesses already working in Excel.
+I built EascaDesk Scheduler Lite to solve this with a constraint solver (Timefold) behind a simple interface: staff upload an Excel file they already understand, the solver runs, and a ready-to-use schedule comes back in seconds. The core challenge was integrating a JVM-backed constraint solver with a modern async Python web stack while keeping the input flow familiar for businesses already working in Excel.
 
 ---
 
