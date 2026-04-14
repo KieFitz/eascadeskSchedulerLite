@@ -134,7 +134,15 @@ def _precompute_shift_id_sets(employees_data: list[dict], shifts_data: list[dict
 
 # ── Solver ────────────────────────────────────────────────────────────────────
 
+# Hard ceiling — no solve ever runs longer than this
+MAX_SOLVER_SECONDS = 300  # 5 minutes
+
+# Stop early if no improvement is found within this window
+UNIMPROVED_SECONDS = 30
+
+
 def _build_solver(timeout_seconds: int):
+    effective_timeout = min(timeout_seconds, MAX_SOLVER_SECONDS)
     config = SolverConfig(
         solution_class=ScheduleSolution,
         entity_class_list=[ShiftAssignment],
@@ -142,7 +150,10 @@ def _build_solver(timeout_seconds: int):
             constraint_provider_function=define_constraints
         ),
         termination_config=TerminationConfig(
-            spent_limit=Duration(seconds=timeout_seconds)
+            # Overall ceiling — solver never runs longer than effective_timeout
+            spent_limit=Duration(seconds=effective_timeout),
+            # Early-exit — stop as soon as score hasn't improved for 30 s
+            unimproved_spent_limit=Duration(seconds=UNIMPROVED_SECONDS),
         ),
     )
     return SolverFactory.create(config).build_solver()
@@ -205,7 +216,8 @@ def _solve_sync(
             sa.employee = emp_by_id[prev_emp_id]
         assignments.append(sa)
 
-    effective_timeout = timeout_seconds if timeout_seconds and timeout_seconds > 0 else settings.SOLVER_TIMEOUT_SECONDS
+    base_timeout = timeout_seconds if timeout_seconds and timeout_seconds > 0 else settings.SOLVER_TIMEOUT_SECONDS
+    effective_timeout = min(base_timeout, MAX_SOLVER_SECONDS)
     problem = ScheduleSolution(employees=employees, shift_assignments=assignments)
     solver = _build_solver(effective_timeout)
     solution: ScheduleSolution = solver.solve(problem)
@@ -244,3 +256,139 @@ async def solve_async(
     return await loop.run_in_executor(
         None, _solve_sync, employees_data, shifts_data, country, timeout_seconds, previous_assignments
     )
+
+
+def check_constraints(
+    employees_data: list[dict],
+    shifts_data: list[dict],
+    assignments_data: list[dict],
+    country: str | None = None,
+) -> list[dict]:
+    """Pure-Python mirror of the Timefold hard constraints.
+
+    Returns a list of violation dicts:
+      {"shift_id": str, "rule": str, "message": str, "severity": "hard"}
+
+    Runs instantly — no JVM/Timefold involved.
+    """
+    from timefold_model.constraints import set_country_config, _active_config  # noqa: PLC0415
+
+    set_country_config(country)
+    min_rest_mins = _active_config["min_rest_hours"] * 60
+
+    emp_by_id: dict[str, dict] = {e["id"]: e for e in employees_data}
+    shift_by_id: dict[str, dict] = {s["id"]: s for s in shifts_data}
+
+    # Pre-compute availability in pure Python
+    avail_sets = _precompute_shift_id_sets(employees_data, shifts_data)
+
+    violations: list[dict] = []
+
+    # Group assigned shifts by employee for overlap / rest checks
+    by_employee: dict[str, list[dict]] = {}
+
+    for a in assignments_data:
+        shift_id = a.get("shift_id")
+        emp_id = a.get("employee_id")
+        shift = shift_by_id.get(shift_id) if shift_id else None
+
+        # ── Unassigned shift ─────────────────────────────────────────────────
+        if not emp_id:
+            violations.append({
+                "shift_id": shift_id,
+                "rule": "Unassigned shift",
+                "message": "This shift slot has no assigned employee.",
+                "severity": "hard",
+            })
+            continue
+
+        emp = emp_by_id.get(emp_id)
+        if not emp or not shift:
+            continue
+
+        emp_avail = avail_sets.get(emp_id, {})
+
+        # ── Missing required skills ──────────────────────────────────────────
+        required = set(shift.get("required_skills") or [])
+        emp_skills = set(emp.get("skills") or [])
+        if required and not required.issubset(emp_skills):
+            missing = sorted(required - emp_skills)
+            violations.append({
+                "shift_id": shift_id,
+                "rule": "Missing required skills",
+                "message": f"{emp['name']} is missing: {', '.join(missing)}",
+                "severity": "hard",
+            })
+
+        # ── Employee unavailable ────────────────────────────────────────────
+        if shift_id in emp_avail.get("unavailable", []):
+            violations.append({
+                "shift_id": shift_id,
+                "rule": "Employee unavailable",
+                "message": f"{emp['name']} is marked unavailable for this shift.",
+                "severity": "hard",
+            })
+
+        # Collect for pair-wise checks
+        by_employee.setdefault(emp_id, []).append(
+            {"shift_id": shift_id, "shift": shift, "emp": emp}
+        )
+
+    # ── Pair-wise: overlapping shifts + minimum rest ─────────────────────────
+    for emp_id, emp_list in by_employee.items():
+        for i in range(len(emp_list)):
+            for j in range(i + 1, len(emp_list)):
+                ea = emp_list[i]
+                eb = emp_list[j]
+                sa = ea["shift"]
+                sb = eb["shift"]
+
+                sa_start = _hhmm_to_mins(sa["start_time"])
+                sa_end   = _hhmm_to_mins(sa["end_time"])
+                sb_start = _hhmm_to_mins(sb["start_time"])
+                sb_end   = _hhmm_to_mins(sb["end_time"])
+
+                sa_ord = date.fromisoformat(sa["date"]).toordinal() * 1440
+                sb_ord = date.fromisoformat(sb["date"]).toordinal() * 1440
+
+                abs_sa_s = sa_ord + sa_start
+                abs_sa_e = sa_ord + sa_end
+                abs_sb_s = sb_ord + sb_start
+                abs_sb_e = sb_ord + sb_end
+
+                # Handle overnight shifts
+                if abs_sa_e <= abs_sa_s:
+                    abs_sa_e += 1440
+                if abs_sb_e <= abs_sb_s:
+                    abs_sb_e += 1440
+
+                overlaps = not (abs_sa_e <= abs_sb_s or abs_sb_e <= abs_sa_s)
+                emp_name = ea["emp"]["name"]
+
+                if overlaps:
+                    for sid in (ea["shift_id"], eb["shift_id"]):
+                        violations.append({
+                            "shift_id": sid,
+                            "rule": "Overlapping shifts",
+                            "message": f"{emp_name} is scheduled for two overlapping shifts.",
+                            "severity": "hard",
+                        })
+                else:
+                    gap = (
+                        (abs_sb_s - abs_sa_e)
+                        if abs_sa_e <= abs_sb_s
+                        else (abs_sa_s - abs_sb_e)
+                    )
+                    if gap < min_rest_mins:
+                        for sid in (ea["shift_id"], eb["shift_id"]):
+                            violations.append({
+                                "shift_id": sid,
+                                "rule": "Insufficient rest between shifts",
+                                "message": (
+                                    f"{emp_name} has only {gap / 60:.1f}h rest "
+                                    f"(minimum {min_rest_mins // 60}h required)."
+                                ),
+                                "severity": "hard",
+                            })
+
+    return violations
