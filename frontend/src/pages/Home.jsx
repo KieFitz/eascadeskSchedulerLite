@@ -60,7 +60,6 @@ export default function Home() {
   const [assignments, setAssignments] = useState([])
   const [solved, setSolved] = useState(false)
   const [scoreInfo, setScoreInfo] = useState(null)
-  const [solveTimeout, setSolveTimeout] = useState(30)
 
   // ── Free-plan usage counter ────────────────────────────────────────────────
   const [usage, setUsage] = useState(null) // { solves_used, solves_limit, plan }
@@ -146,7 +145,7 @@ export default function Home() {
     if (hasUnsavedEdits) await persistEdits(true)
     setSolving(true)
     try {
-      const run = await solveSchedule(runId, solveTimeout)
+      const run = await solveSchedule(runId)
       if (run.status === 'completed' && run.result_data?.assignments) {
         setAssignments(run.result_data.assignments.map((a) => ({ ...a, source: 'SOLVER' })))
         setSolved(true)
@@ -429,20 +428,6 @@ export default function Home() {
                   {violationCount} violation{violationCount !== 1 ? 's' : ''}
                 </span>
               )}
-
-              {/* Solver timeout */}
-              <select
-                value={solveTimeout}
-                onChange={(e) => setSolveTimeout(Number(e.target.value))}
-                disabled={solving}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
-                title={isSpanish ? 'Tiempo límite del planificador' : 'Solver time limit'}
-              >
-                <option value={30}>30 s</option>
-                <option value={60}>1 min</option>
-                <option value={120}>2 min</option>
-                <option value={300}>5 min</option>
-              </select>
 
               {/* Validate */}
               <Button variant="secondary" size="sm" onClick={handleValidate} loading={validating} disabled={solving}>
