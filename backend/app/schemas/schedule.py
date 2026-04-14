@@ -11,6 +11,8 @@ class ScheduleRunOut(BaseModel):
     month: int
     score_info: str | None
     error_message: str | None
+    is_published: bool = False
+    published_at: datetime | None = None
     created_at: datetime
     employees_data: Any | None = None
     shifts_data: Any | None = None
@@ -37,5 +39,15 @@ class ValidateRequest(BaseModel):
     """Body for POST /schedules/{run_id}/validate — check hard constraints."""
     assignments: list[dict]
     # Optional overrides — if omitted the server uses the stored run data.
+    employees: list[dict] | None = None
+    shifts: list[dict] | None = None
+
+
+class SubstituteRequest(BaseModel):
+    """Body for POST /schedules/{run_id}/substitutes/{shift_id}.
+
+    All fields optional — if omitted the server uses the stored run data.
+    """
+    assignments: list[dict] | None = None
     employees: list[dict] | None = None
     shifts: list[dict] | None = None

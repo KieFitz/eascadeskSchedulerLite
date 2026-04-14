@@ -53,6 +53,20 @@ _STRINGS = {
         "sheet2": "Shift Schedule",
         "sheet3": "All Assignments",
         "sheet4": "Employee Stats",
+        "sheet5": "Substitutes",
+        # Sheet 5 column headers
+        "s5_date":      "Date",
+        "s5_start":     "Start",
+        "s5_end":       "End",
+        "s5_skills":    "Required Skills",
+        "s5_assigned":  "Assigned To",
+        "s5_sub1":      "Substitute 1",
+        "s5_why1":      "Why",
+        "s5_sub2":      "Substitute 2",
+        "s5_why2":      "Why",
+        "s5_sub3":      "Substitute 3",
+        "s5_why3":      "Why",
+        "s5_note":      "If the assigned employee calls in sick, these are the next best available substitutes (ranked by skill match, availability, and schedule fit).",
         "employee": "Employee",
         "unassigned": "UNASSIGNED",
         # Sheet 2 column headers
@@ -91,6 +105,19 @@ _STRINGS = {
         "sheet2": "Horario de Turnos",
         "sheet3": "Todas las Asignaciones",
         "sheet4": "Estad\u00edsticas de Empleados",
+        "sheet5": "Sustitutos",
+        "s5_date":      "Fecha",
+        "s5_start":     "Inicio",
+        "s5_end":       "Fin",
+        "s5_skills":    "Habilidades Requeridas",
+        "s5_assigned":  "Asignado a",
+        "s5_sub1":      "Sustituto 1",
+        "s5_why1":      "Por qu\u00e9",
+        "s5_sub2":      "Sustituto 2",
+        "s5_why2":      "Por qu\u00e9",
+        "s5_sub3":      "Sustituto 3",
+        "s5_why3":      "Por qu\u00e9",
+        "s5_note":      "Si el empleado asignado llama enfermo, estos son los mejores sustitutos disponibles (clasificados por habilidades, disponibilidad y encaje de horario).",
         "employee": "Empleado",
         "unassigned": "SIN ASIGNAR",
         # Sheet 2
@@ -187,6 +214,7 @@ def build_schedule_excel(
     _build_shift_schedule(wb, assignments, lang)
     _build_all_assignments(wb, employees, assignments, lang)
     _build_employee_stats(wb, employees, assignments, lang)
+    _build_substitutes(wb, employees, shifts, assignments, lang)
 
     buf = BytesIO()
     wb.save(buf)
@@ -546,3 +574,170 @@ def _build_employee_stats(wb, employees: list[dict], assignments: list[dict], la
         ws.column_dimensions[get_column_letter(i)].width = w
 
     ws.freeze_panes = "A2"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SHEET 5 — Substitutes (sick-call quick-reference)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _to_mins(t: str) -> int:
+    try:
+        h, m = t.split(":")
+        return int(h) * 60 + int(m)
+    except Exception:
+        return 0
+
+
+def _rank_substitutes_excel(
+    employees: list[dict],
+    shifts: list[dict],
+    assignments: list[dict],
+    target_shift: dict,
+    max_results: int = 3,
+) -> list[dict]:
+    """Simple substitute ranking for the Excel sheet.
+
+    Factors: skill match, same-day schedule overlap.
+    (Availability spans are included if present in employee dicts.)
+    """
+    shift_id   = target_shift.get("id", "")
+    shift_date = target_shift.get("date", "")
+    s_start    = _to_mins(target_shift.get("start_time", ""))
+    s_end      = _to_mins(target_shift.get("end_time", "") )
+    if s_end <= s_start:
+        s_end += 1440
+    required = set(target_shift.get("required_skills") or [])
+
+    # Same-day overlap map
+    shift_by_id = {s.get("id", ""): s for s in shifts}
+    overlapping_emps: set[str] = set()
+    for a in assignments:
+        eid = a.get("employee_id")
+        sid = a.get("shift_id")
+        if not eid or sid == shift_id:
+            continue
+        other = shift_by_id.get(sid)
+        if not other or other.get("date") != shift_date:
+            continue
+        o_s = _to_mins(other.get("start_time", ""))
+        o_e = _to_mins(other.get("end_time", ""))
+        if o_e <= o_s:
+            o_e += 1440
+        if s_start < o_e and s_end > o_s:
+            overlapping_emps.add(eid)
+
+    results = []
+    for emp in employees:
+        eid       = emp.get("id", "")
+        emp_skills = set(emp.get("skills") or [])
+        skills_ok  = not required or required.issubset(emp_skills)
+        missing    = sorted(required - emp_skills)
+        overlaps   = eid in overlapping_emps
+
+        score = (4 if skills_ok else 0) + (-10 if overlaps else 0)
+
+        reasons = []
+        if not skills_ok:
+            reasons.append(f"Missing: {', '.join(missing)}")
+        if overlaps:
+            reasons.append("Already scheduled")
+        if not reasons:
+            reasons.append("Available")
+
+        results.append({
+            "name":   emp.get("name", ""),
+            "score":  score,
+            "reason": " · ".join(reasons),
+        })
+
+    results.sort(key=lambda x: (-x["score"], x["name"]))
+    return results[:max_results]
+
+
+def _build_substitutes(
+    wb,
+    employees: list[dict],
+    shifts: list[dict],
+    assignments: list[dict],
+    lang: str,
+) -> None:
+    ws = wb.create_sheet(_s(lang, "sheet5"))
+
+    # Introductory note spanning all columns
+    note_row = 1
+    num_cols = 11
+    ws.cell(row=note_row, column=1, value=_s(lang, "s5_note"))
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=num_cols)
+    note_cell = ws.cell(row=note_row, column=1)
+    note_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    note_cell.font = Font(italic=True, color="6B7280", size=9)
+    ws.row_dimensions[note_row].height = 30
+
+    # Header row
+    header_row = 2
+    headers = [
+        _s(lang, "s5_date"),
+        _s(lang, "s5_start"),
+        _s(lang, "s5_end"),
+        _s(lang, "s5_skills"),
+        _s(lang, "s5_assigned"),
+        _s(lang, "s5_sub1"),
+        _s(lang, "s5_why1"),
+        _s(lang, "s5_sub2"),
+        _s(lang, "s5_why2"),
+        _s(lang, "s5_sub3"),
+        _s(lang, "s5_why3"),
+    ]
+    for c, h in enumerate(headers, start=1):
+        ws.cell(row=header_row, column=c, value=h)
+    _apply_header(ws, header_row, num_cols)
+
+    # Build an assignment lookup: shift_id → assignment
+    assign_by_shift = {a.get("shift_id", ""): a for a in assignments}
+
+    # Sort all shifts by date then start time
+    unassigned_label = _s(lang, "unassigned")
+    sorted_shifts = sorted(shifts, key=lambda s: (s.get("date", ""), s.get("start_time", "")))
+
+    row_idx = header_row + 1
+    for i, shift in enumerate(sorted_shifts):
+        a = assign_by_shift.get(shift.get("id", ""), {})
+        assigned_name = a.get("employee_name") or unassigned_label
+        skills        = shift.get("required_skills") or []
+        skills_str    = ", ".join(skills)
+
+        subs = _rank_substitutes_excel(employees, shifts, assignments, shift, max_results=3)
+
+        row_data: list = [
+            shift.get("date", ""),
+            shift.get("start_time", ""),
+            shift.get("end_time", ""),
+            skills_str,
+            assigned_name,
+        ]
+        for sub in subs:
+            row_data += [sub["name"], sub["reason"]]
+        while len(row_data) < num_cols:
+            row_data.append("")
+
+        for c, val in enumerate(row_data, start=1):
+            cell = ws.cell(row=row_idx, column=c, value=val)
+            cell.alignment = CENTER
+            cell.border    = THIN_BORDER
+
+        # Highlight unassigned shifts in amber
+        if not a.get("employee_id"):
+            for c in range(1, num_cols + 1):
+                ws.cell(row=row_idx, column=c).fill = PatternFill("solid", fgColor="FEF3C7")
+        elif i % 2 == 0:
+            for c in range(1, num_cols + 1):
+                ws.cell(row=row_idx, column=c).fill = ZEBRA_FILL
+
+        row_idx += 1
+
+    # Column widths
+    widths = [14, 10, 10, 28, 22, 22, 30, 22, 30, 22, 30]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    ws.freeze_panes = "A3"

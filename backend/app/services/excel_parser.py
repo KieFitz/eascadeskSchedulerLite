@@ -65,6 +65,86 @@ _AVAIL_TYPE_ALIASES: dict[str, str] = {
     "no disponible":  "Unavailable",
 }
 
+# Skill aliases — maps lowercase Spanish (and common English variants) to a
+# canonical English title-cased form.  Applied to BOTH employee skills and
+# shift required-skills so that "Cajero" == "Cashier" after normalisation.
+_SKILL_ALIASES: dict[str, str] = {
+    # Cashier
+    "cajero":           "Cashier",
+    "cajera":           "Cashier",
+    "caja":             "Cashier",
+    # Manager
+    "gerente":          "Manager",
+    "gestor":           "Manager",
+    "gestora":          "Manager",
+    "jefe":             "Manager",
+    "jefa":             "Manager",
+    # Supervisor
+    "supervisor":       "Supervisor",
+    "supervisora":      "Supervisor",
+    # Cook / Chef
+    "cocinero":         "Cook",
+    "cocinera":         "Cook",
+    "cocina":           "Cook",
+    "chef":             "Chef",
+    # Waiter / Waitress
+    "camarero":         "Waiter",
+    "mesero":           "Waiter",
+    "mozo":             "Waiter",
+    "camarera":         "Waitress",
+    "mesera":           "Waitress",
+    # Bartender / Barista
+    "bartender":        "Bartender",
+    "barman":           "Bartender",
+    "barmaid":          "Bartender",
+    "barista":          "Barista",
+    # Cleaning
+    "limpieza":         "Cleaning",
+    "limpiador":        "Cleaning",
+    "limpiadora":       "Cleaning",
+    # Security
+    "seguridad":        "Security",
+    "vigilante":        "Security",
+    # Receptionist
+    "recepcionista":    "Receptionist",
+    # Driver
+    "conductor":        "Driver",
+    "conductora":       "Driver",
+    "chófer":           "Driver",
+    "chofer":           "Driver",
+    # Warehouse / Stock
+    "almacén":          "Warehouse",
+    "almacen":          "Warehouse",
+    "almacenero":       "Warehouse",
+    "almacenera":       "Warehouse",
+    "reponedor":        "Stock",
+    "reponedora":       "Stock",
+    # Pharmacist
+    "farmacéutico":     "Pharmacist",
+    "farmaceutico":     "Pharmacist",
+    "farmacéutica":     "Pharmacist",
+    "farmaceutica":     "Pharmacist",
+    # Nurse
+    "enfermero":        "Nurse",
+    "enfermera":        "Nurse",
+    # Electrician / Plumber
+    "electricista":     "Electrician",
+    "fontanero":        "Plumber",
+    "plomero":          "Plumber",
+}
+
+
+def _normalise_skill(raw: str) -> str:
+    """Return the canonical English skill name for the given raw string.
+
+    Looks up the lowercase form in _SKILL_ALIASES first.  If not found,
+    falls back to title-casing the raw value so that "cashier" == "Cashier".
+    This guarantees that the same concept spelled in Spanish or mixed-case
+    always maps to the same string on both the employee and shift sides.
+    """
+    key = raw.strip().lower()
+    return _SKILL_ALIASES.get(key, raw.strip().title())
+
 
 def _canonical_sheet(name: str) -> str:
     """Return the canonical English sheet name, or the original if not aliased."""
@@ -168,7 +248,7 @@ def _parse_employees(ws, availability: dict) -> list[dict]:
         name_key = name_str.lower()
 
         skills_raw = row[idx["Skills"]] if "Skills" in idx else ""
-        skills = [s.strip() for s in str(skills_raw or "").split(",") if s.strip()]
+        skills = [_normalise_skill(s) for s in str(skills_raw or "").split(",") if s.strip()]
 
         min_hours = 0
         if "Min Hours/Week" in idx and row[idx["Min Hours/Week"]]:
@@ -333,7 +413,7 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
         required_skills_raw = ""
         if "Required Skills" in idx:
             required_skills_raw = str(row[idx["Required Skills"]] or "")
-        required_skills = [s.strip() for s in required_skills_raw.split(",") if s.strip()]
+        required_skills = [_normalise_skill(s) for s in required_skills_raw.split(",") if s.strip()]
 
         start_str = _to_time_str(raw_start)
         end_str = _to_time_str(raw_end)

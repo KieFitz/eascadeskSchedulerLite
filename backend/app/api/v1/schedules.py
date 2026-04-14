@@ -1,13 +1,13 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
 from app.models.schedule import ScheduleRun
 from app.models.user import User
-from app.schemas.schedule import AssignmentUpdateRequest, ScheduleRunOut, ValidateRequest
+from app.schemas.schedule import AssignmentUpdateRequest, ScheduleRunOut, SubstituteRequest, ValidateRequest
 from app.services.plan_limits import FREE_MONTHLY_SOLVES
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
@@ -126,6 +126,91 @@ async def update_assignments(
     await db.commit()
     await db.refresh(run)
     return run
+
+
+@router.post("/{run_id}/publish", response_model=ScheduleRunOut)
+async def publish_schedule(
+    run_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a completed schedule as published (frozen for distribution)."""
+    result = await db.execute(
+        select(ScheduleRun).where(
+            ScheduleRun.id == run_id, ScheduleRun.user_id == current_user.id
+        )
+    )
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    if run.status != "completed":
+        raise HTTPException(status_code=400, detail="Only completed schedules can be published")
+
+    run.is_published = True
+    run.published_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
+@router.delete("/{run_id}/publish", response_model=ScheduleRunOut)
+async def unpublish_schedule(
+    run_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove the published flag from a schedule."""
+    result = await db.execute(
+        select(ScheduleRun).where(
+            ScheduleRun.id == run_id, ScheduleRun.user_id == current_user.id
+        )
+    )
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    run.is_published = False
+    run.published_at = None
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
+@router.post("/{run_id}/substitutes/{shift_id}")
+async def get_substitutes(
+    run_id: str,
+    shift_id: str,
+    body: SubstituteRequest = Body(default=SubstituteRequest()),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return employees ranked by suitability to cover a given shift.
+
+    Useful for sick-call replacement. Pass current UI state in the body so
+    manual edits that haven't been saved yet are taken into account.
+    """
+    result = await db.execute(
+        select(ScheduleRun).where(
+            ScheduleRun.id == run_id, ScheduleRun.user_id == current_user.id
+        )
+    )
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    employees = body.employees or run.employees_data or []
+    shifts = body.shifts or run.shifts_data or []
+    assignments = body.assignments or (run.result_data or {}).get("assignments", [])
+
+    from app.services.scheduler import find_substitutes  # noqa: PLC0415
+
+    ranked = find_substitutes(
+        employees_data=employees,
+        shifts_data=shifts,
+        assignments_data=assignments,
+        shift_id=shift_id,
+    )
+    return {"substitutes": ranked}
 
 
 @router.post("/{run_id}/validate")

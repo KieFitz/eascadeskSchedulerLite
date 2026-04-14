@@ -258,6 +258,109 @@ async def solve_async(
     )
 
 
+def find_substitutes(
+    employees_data: list[dict],
+    shifts_data: list[dict],
+    assignments_data: list[dict],
+    shift_id: str,
+) -> list[dict]:
+    """Return employees ranked by suitability to cover the given shift.
+
+    Ranking factors (higher score = better fit):
+      +4  covers all required skills
+      +2  shift falls inside a preferred time window
+      -1  shift falls inside an unpreferred time window
+      -6  employee is marked unavailable
+      -10 employee already has an overlapping shift that day
+
+    Runs in pure Python — no JVM/Timefold involved.
+    """
+    from datetime import date as _date  # noqa: PLC0415
+
+    target = next((s for s in shifts_data if s["id"] == shift_id), None)
+    if not target:
+        return []
+
+    shift_date_str = target["date"]
+    d = _date.fromisoformat(shift_date_str)
+    shift_weekday = _WEEKDAY_NAMES[d.weekday()]
+    shift_start = _hhmm_to_mins(target["start_time"])
+    shift_end   = _hhmm_to_mins(target["end_time"])
+    if shift_end <= shift_start:
+        shift_end += 1440  # overnight
+
+    required_skills = set(target.get("required_skills") or [])
+
+    # Per-employee list of same-day shifts they're already assigned to
+    shift_by_id = {s["id"]: s for s in shifts_data}
+    emp_day_shifts: dict[str, list[dict]] = {}
+    for a in assignments_data:
+        if a.get("shift_id") == shift_id or not a.get("employee_id"):
+            continue
+        s = shift_by_id.get(a["shift_id"])
+        if s and s["date"] == shift_date_str:
+            emp_day_shifts.setdefault(a["employee_id"], []).append(s)
+
+    avail_sets = _precompute_shift_id_sets(employees_data, shifts_data)
+
+    results: list[dict] = []
+    for emp in employees_data:
+        emp_id     = emp["id"]
+        emp_skills = set(emp.get("skills") or [])
+        avail      = avail_sets.get(emp_id, {})
+
+        skills_ok     = not required_skills or required_skills.issubset(emp_skills)
+        missing_skills = sorted(required_skills - emp_skills)
+
+        overlaps = False
+        for other in emp_day_shifts.get(emp_id, []):
+            o_start = _hhmm_to_mins(other["start_time"])
+            o_end   = _hhmm_to_mins(other["end_time"])
+            if o_end <= o_start:
+                o_end += 1440
+            if shift_start < o_end and shift_end > o_start:
+                overlaps = True
+                break
+
+        is_unavailable = shift_id in avail.get("unavailable", [])
+        is_preferred   = shift_id in avail.get("preferred",   [])
+        is_unpreferred = shift_id in avail.get("unpreferred", [])
+
+        score = 0
+        if skills_ok:     score += 4
+        if overlaps:      score -= 10
+        if is_unavailable: score -= 6
+        if is_preferred:  score += 2
+        if is_unpreferred: score -= 1
+
+        reasons: list[str] = []
+        if not skills_ok:
+            reasons.append(f"Missing: {', '.join(missing_skills)}")
+        if overlaps:
+            reasons.append("Already scheduled this time")
+        if is_unavailable:
+            reasons.append("Marked unavailable")
+        if is_preferred:
+            reasons.append("Preferred time")
+        elif is_unpreferred:
+            reasons.append("Unpreferred time")
+
+        results.append({
+            "employee_id":    emp_id,
+            "employee_name":  emp["name"],
+            "skills":         sorted(emp_skills),
+            "score":          score,
+            "skills_ok":      skills_ok,
+            "overlaps":       overlaps,
+            "is_unavailable": is_unavailable,
+            "is_preferred":   is_preferred,
+            "reasons":        reasons,
+        })
+
+    results.sort(key=lambda x: (-x["score"], x["employee_name"]))
+    return results
+
+
 def check_constraints(
     employees_data: list[dict],
     shifts_data: list[dict],

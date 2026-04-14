@@ -60,6 +60,25 @@ export async function validateSchedule(run_id, assignments, employees = null, sh
   return data
 }
 
+export async function publishSchedule(run_id) {
+  const { data } = await client.post(`/schedules/${run_id}/publish`)
+  return data
+}
+
+export async function unpublishSchedule(run_id) {
+  const { data } = await client.delete(`/schedules/${run_id}/publish`)
+  return data
+}
+
+export async function getSubstitutes(run_id, shift_id, { assignments, employees, shifts } = {}) {
+  const body = {}
+  if (assignments) body.assignments = assignments
+  if (employees)   body.employees   = employees
+  if (shifts)      body.shifts      = shifts
+  const { data } = await client.post(`/schedules/${run_id}/substitutes/${shift_id}`, body)
+  return data.substitutes
+}
+
 export async function downloadExport(run_id) {
   const response = await client.get(`/export/${run_id}`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(new Blob([response.data]))
