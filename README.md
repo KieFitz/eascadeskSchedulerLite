@@ -313,13 +313,13 @@ docker compose -f docker-compose.prod.yml restart backend
 ---
 
 ## Roadmap
-
+- [ ] **Seperate planning schedule and publish Schedule** - have planning schedule and seperate live published schedule.
+   - [ ] - Published schedule can run recommend replacement for shifts or series of shifts for sick leave / absense. disruption constrain with penalty based on timespans.
+   - [ ] - Planning schedule - add ability to create template of shifts.
 - [ ] **Industry-specific templates** — Pre-built Excel templates for hospitality, retail, healthcare, and logistics
 - [ ] **Schedule comparison** — Diff two solve runs to highlight what changed
-- [ ] **Availability self-service** — Employee portal for submitting availability directly
 - [ ] **Calendar integrations** — Export to Google Calendar and Outlook
-- [ ] **Mobile-friendly UI** — Responsive design improvements for tablet and phone
-- [ ] **Advanced reporting** — Cost breakdowns, overtime alerts, coverage heatmaps
+- [ ] **Advanced reporting** — Cost breakdowns, overtime alerts - for laters
 
 ---
 
