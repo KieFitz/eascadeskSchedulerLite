@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { addDays, format, parseISO, startOfWeek } from 'date-fns'
 import {
   ChevronLeftIcon,
@@ -10,6 +11,104 @@ import {
 } from '@heroicons/react/24/outline'
 import ShiftEditModal from './ShiftEditModal'
 import ShiftCreateModal from './ShiftCreateModal'
+
+// ── Portal tooltip ────────────────────────────────────────────────────────────
+function ShiftTooltip({ tip }) {
+  if (!tip) return null
+  const { assignment: a, violations: v, x, y } = tip
+  const shiftViolations = v?.[a.shift_id] ?? []
+
+  // Keep the tooltip on screen — flip above/left when near viewport edges
+  const FLIP_H = 220  // estimated max tooltip height
+  const FLIP_W = 278  // maxWidth + right offset
+
+  const style = {
+    position:      'fixed',
+    zIndex:        9999,
+    pointerEvents: 'none',
+    maxWidth:      260,
+  }
+
+  if (y + FLIP_H > window.innerHeight) {
+    style.bottom = window.innerHeight - y + 8   // render above cursor
+  } else {
+    style.top = y + 14
+  }
+
+  if (x + FLIP_W > window.innerWidth) {
+    style.right = window.innerWidth - x + 8     // render to the left
+  } else {
+    style.left = x + 14
+  }
+
+  const formattedDate = (() => {
+    try { return format(parseISO(a.date), 'EEE d MMM yyyy') }
+    catch { return a.date }
+  })()
+
+  return createPortal(
+    <div
+      className="bg-dark text-white text-xs rounded-xl shadow-card px-3 py-2.5 space-y-1.5"
+      style={style}
+    >
+      {/* Time + date */}
+      <div>
+        <p className="font-mono font-semibold text-sm leading-tight">
+          {a.start_time} – {a.end_time}
+        </p>
+        <p className="text-white/60 text-[11px]">{formattedDate}</p>
+      </div>
+
+      {/* Required skills */}
+      {a.required_skills?.length > 0 && (
+        <div>
+          <p className="text-white/50 text-[10px] uppercase tracking-wider mb-0.5">Required skills</p>
+          <div className="flex flex-wrap gap-1">
+            {a.required_skills.map((s) => (
+              <span key={s} className="px-1.5 py-0.5 rounded bg-white/15 text-white text-[10px] font-medium">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Assignment */}
+      <div className="flex items-center gap-1.5">
+        {a.employee_name ? (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-teal flex-shrink-0" />
+            <span>{a.employee_name}</span>
+            {a.source === 'SOLVER' && (
+              <span className="text-white/40 text-[10px]">(auto)</span>
+            )}
+            {a.source === 'MANUAL' && (
+              <span className="text-white/40 text-[10px]">(manual)</span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+            <span className="text-amber-300">Unassigned</span>
+          </>
+        )}
+      </div>
+
+      {/* Violations */}
+      {shiftViolations.length > 0 && (
+        <div className="border-t border-white/10 pt-1.5 space-y-0.5">
+          {shiftViolations.map((vio, i) => (
+            <p key={i} className="flex items-start gap-1 text-red-300 text-[11px]">
+              <ExclamationTriangleIcon className="h-3 w-3 flex-shrink-0 mt-0.5" />
+              {vio.message}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body
+  )
+}
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 const ROW_H   = 52
@@ -94,10 +193,8 @@ function HourLabels() {
 }
 
 // ── Shift bar — draggable & clickable when editable ───────────────────────────
-function ShiftBar({ a, editable, violations, onClickEdit, onDragStart, onDragEnd }) {
-  const shiftViolations = violations?.[a.shift_id]
-  const hasViolation = shiftViolations?.length > 0
-  const violationTip = hasViolation ? shiftViolations.map((v) => v.message).join('\n') : ''
+function ShiftBar({ a, editable, violations, onClickEdit, onDragStart, onDragEnd, onMouseEnter, onMouseLeave }) {
+  const hasViolation = (violations?.[a.shift_id]?.length ?? 0) > 0
 
   return (
     <div
@@ -105,6 +202,8 @@ function ShiftBar({ a, editable, violations, onClickEdit, onDragStart, onDragEnd
       onDragStart={editable ? (e) => onDragStart(e, a.shift_id) : undefined}
       onDragEnd={editable ? onDragEnd : undefined}
       onClick={editable ? (e) => { e.stopPropagation(); onClickEdit(a) } : undefined}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className={[
         'absolute rounded px-1.5 flex items-center gap-0.5 overflow-hidden select-none transition-opacity',
         editable ? 'cursor-grab active:cursor-grabbing hover:brightness-95' : 'cursor-default',
@@ -118,7 +217,6 @@ function ShiftBar({ a, editable, violations, onClickEdit, onDragStart, onDragEnd
         top: BAR_Y,
         zIndex: 1,
       }}
-      title={hasViolation ? violationTip : `${a.start_time}–${a.end_time}${a.employee_name ? ' · ' + a.employee_name : ''}`}
     >
       {hasViolation && (
         <ExclamationTriangleIcon className="h-3 w-3 flex-shrink-0 text-red-500" />
@@ -196,6 +294,7 @@ function EmployeeView({
   employees, visibleDates, assignMap, unassignedMap,
   editable, violations,
   onReassign, onClickEditShift, onClickCreateShift,
+  onTipShow, onTipHide,
 }) {
   const draggedShiftId = useRef(null)
   const [dragOverTarget, setDragOverTarget] = useState(null) // empId or 'unassigned'
@@ -288,6 +387,8 @@ function EmployeeView({
                         onClickEdit={onClickEditShift}
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
+                        onMouseEnter={(e) => onTipShow(e, a)}
+                        onMouseLeave={onTipHide}
                       />
                     ))}
                   </div>
@@ -321,6 +422,8 @@ function EmployeeView({
                     onClickEdit={onClickEditShift}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
+                    onMouseEnter={(e) => onTipShow(e, a)}
+                    onMouseLeave={onTipHide}
                   />
                 ))}
               </div>
@@ -486,10 +589,11 @@ export default function ScheduleGantt({
   employees,
   shifts,
   assignments,
-  violations,     // { [shift_id]: [{rule, message, severity}] }
-  onReassign,     // (shiftId, empId | null) => void
-  onDeleteShift,  // (shiftId) => void
-  onCreateShift,  // (shiftData, empId | null) => void
+  violations,           // { [shift_id]: [{rule, message, severity}] }
+  onReassign,           // (shiftId, empId | null) => void
+  onDeleteShift,        // (shiftId) => void
+  onCreateShift,        // (shiftData, empId | null) => void
+  onFindSubstitutes,    // async (shiftId) => [{employee_id, score, ...}]
   editable = false,
 }) {
   const employeesArr  = employees  ?? []
@@ -510,6 +614,14 @@ export default function ScheduleGantt({
   // ── Modal state ────────────────────────────────────────────────────────────
   const [editingAssignment, setEditingAssignment] = useState(null)
   const [createDate, setCreateDate] = useState(null)
+
+  // ── Tooltip state ──────────────────────────────────────────────────────────
+  const [tooltip, setTooltip] = useState(null) // { assignment, violations, x, y }
+
+  const handleTipShow = (e, assignment) => {
+    setTooltip({ assignment, violations, x: e.clientX, y: e.clientY })
+  }
+  const handleTipHide = () => setTooltip(null)
 
   const visibleDates = useMemo(
     () => Array.from({ length: DAYS_IN_VIEW }, (_, i) => format(addDays(weekStart, i), 'yyyy-MM-dd')),
@@ -582,6 +694,8 @@ export default function ScheduleGantt({
           onReassign={onReassign}
           onClickEditShift={handleClickEditShift}
           onClickCreateShift={handleClickCreateShift}
+          onTipShow={handleTipShow}
+          onTipHide={handleTipHide}
         />
       ) : (
         <ShiftView
@@ -633,6 +747,9 @@ export default function ScheduleGantt({
         )}
       </div>
 
+      {/* Tooltip */}
+      <ShiftTooltip tip={tooltip} />
+
       {/* Modals */}
       {editingAssignment && (
         <ShiftEditModal
@@ -642,6 +759,7 @@ export default function ScheduleGantt({
           onSave={handleEditSave}
           onDelete={handleEditDelete}
           onClose={() => setEditingAssignment(null)}
+          onFindSubstitutes={onFindSubstitutes}
         />
       )}
       {createDate && (

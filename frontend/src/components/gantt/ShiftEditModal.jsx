@@ -1,17 +1,50 @@
 import { useState } from 'react'
-import { ExclamationTriangleIcon, TrashIcon } from '@heroicons/react/24/outline'
+import {
+  ExclamationTriangleIcon,
+  TrashIcon,
+  UserGroupIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline'
 import Modal from '../common/Modal'
 import Button from '../common/Button'
+import Spinner from '../common/Spinner'
 import { format, parseISO } from 'date-fns'
 
-export default function ShiftEditModal({ assignment, employees, violations, onSave, onDelete, onClose }) {
+// Score badge colour
+function ScoreBadge({ score }) {
+  const colour =
+    score >= 4  ? 'bg-emerald-100 text-emerald-700' :
+    score >= 0  ? 'bg-amber-100 text-amber-700'     :
+                  'bg-red-100 text-red-600'
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${colour}`}>
+      {score > 0 ? `+${score}` : score}
+    </span>
+  )
+}
+
+export default function ShiftEditModal({
+  assignment,
+  employees,
+  violations,
+  onSave,
+  onDelete,
+  onClose,
+  onFindSubstitutes,   // async (shift_id) => [{employee_id, employee_name, score, reasons, ...}]
+}) {
   const [selectedEmpId, setSelectedEmpId] = useState(assignment?.employee_id ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Substitute finder state
+  const [substitutes, setSubstitutes]   = useState(null)
+  const [loadingSubs, setLoadingSubs]   = useState(false)
+  const [subsError, setSubsError]       = useState(null)
 
   if (!assignment) return null
 
   const shiftViolations = violations?.[assignment.shift_id] ?? []
-  const hasViolations = shiftViolations.length > 0
+  const hasViolations   = shiftViolations.length > 0
 
   const formattedDate = (() => {
     try { return format(parseISO(assignment.date), 'EEEE d MMMM yyyy') }
@@ -27,6 +60,21 @@ export default function ShiftEditModal({ assignment, employees, violations, onSa
     if (!confirmDelete) { setConfirmDelete(true); return }
     onDelete(assignment.shift_id)
     onClose()
+  }
+
+  const handleFindSubstitutes = async () => {
+    if (!onFindSubstitutes) return
+    setLoadingSubs(true)
+    setSubsError(null)
+    setSubstitutes(null)
+    try {
+      const subs = await onFindSubstitutes(assignment.shift_id)
+      setSubstitutes(subs)
+    } catch {
+      setSubsError('Could not load substitutes. Please try again.')
+    } finally {
+      setLoadingSubs(false)
+    }
   }
 
   return (
@@ -82,6 +130,68 @@ export default function ShiftEditModal({ assignment, employees, violations, onSa
           </option>
         ))}
       </select>
+
+      {/* Sick-call substitute finder */}
+      {onFindSubstitutes && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-dark flex items-center gap-1.5">
+              <UserGroupIcon className="h-3.5 w-3.5 text-brand-purple" />
+              Find substitute
+            </span>
+            <button
+              onClick={handleFindSubstitutes}
+              disabled={loadingSubs}
+              className="flex items-center gap-1 text-xs font-medium text-brand-purple hover:text-brand-purple/80 disabled:opacity-50 transition-colors"
+            >
+              {loadingSubs ? <Spinner size="sm" /> : null}
+              {loadingSubs ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+
+          {subsError && (
+            <p className="text-xs text-red-500">{subsError}</p>
+          )}
+
+          {substitutes !== null && (
+            <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+              {substitutes.length === 0 ? (
+                <p className="px-3 py-2.5 text-xs text-muted text-center">No employees found.</p>
+              ) : substitutes.slice(0, 6).map((sub) => (
+                <button
+                  key={sub.employee_id}
+                  onClick={() => setSelectedEmpId(sub.employee_id)}
+                  className={[
+                    'w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors',
+                    selectedEmpId === sub.employee_id
+                      ? 'bg-brand-lavender-light'
+                      : 'hover:bg-gray-50',
+                    sub.overlaps || sub.is_unavailable ? 'opacity-60' : '',
+                  ].join(' ')}
+                >
+                  {/* Check/X icon */}
+                  {sub.skills_ok && !sub.overlaps && !sub.is_unavailable ? (
+                    <CheckCircleIcon className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                  ) : sub.overlaps ? (
+                    <XCircleIcon className="h-4 w-4 text-red-400 flex-shrink-0" />
+                  ) : (
+                    <ExclamationTriangleIcon className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-dark truncate">{sub.employee_name}</p>
+                    {sub.reasons.length > 0 && (
+                      <p className="text-muted truncate">{sub.reasons.join(' · ')}</p>
+                    )}
+                  </div>
+
+                  <ScoreBadge score={sub.score} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="mt-5 flex items-center justify-between gap-2">

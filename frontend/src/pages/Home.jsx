@@ -7,6 +7,7 @@ import {
   CheckCircleIcon,
   DocumentArrowDownIcon,
   ExclamationTriangleIcon,
+  GlobeAltIcon,
   ShieldCheckIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline'
@@ -16,7 +17,7 @@ import Spinner from '../components/common/Spinner'
 import EmptyState from '../components/common/EmptyState'
 import Badge from '../components/common/Badge'
 import ScheduleGantt from '../components/gantt/ScheduleGantt'
-import { downloadExport, downloadTemplate, getUsage, solveSchedule, updateAssignments, uploadExcel, validateSchedule } from '../api/schedules'
+import { downloadExport, downloadTemplate, getSubstitutes, getUsage, publishSchedule, solveSchedule, unpublishSchedule, updateAssignments, uploadExcel, validateSchedule } from '../api/schedules'
 import { useAuth } from '../context/AuthContext'
 import { useTranslations } from '../i18n'
 import toast from 'react-hot-toast'
@@ -52,6 +53,7 @@ export default function Home() {
   const [templateDownloading, setTemplateDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [validating, setValidating] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
   // ── Schedule data ──────────────────────────────────────────────────────────
   const [runId, setRunId] = useState(null)
@@ -60,6 +62,7 @@ export default function Home() {
   const [assignments, setAssignments] = useState([])
   const [solved, setSolved] = useState(false)
   const [scoreInfo, setScoreInfo] = useState(null)
+  const [isPublished, setIsPublished] = useState(false)
 
   // ── Free-plan usage counter ────────────────────────────────────────────────
   const [usage, setUsage] = useState(null) // { solves_used, solves_limit, plan }
@@ -131,6 +134,7 @@ export default function Home() {
       setScoreInfo(null)
       setViolations({})
       setHasUnsavedEdits(false)
+      setIsPublished(false)
       toast.success(t('toastUploaded', data.employee_count, data.shift_slot_count))
     } catch (err) {
       toast.error(err?.response?.data?.detail ?? t('toastUploadFail'))
@@ -152,6 +156,7 @@ export default function Home() {
         setScoreInfo(run.score_info)
         setViolations({})
         setHasUnsavedEdits(false)
+        setIsPublished(false)   // re-solve unpublishes so manager must re-confirm
         refreshUsage()
         toast.success(t('toastSolved'))
       } else if (run.status === 'failed') {
@@ -199,6 +204,7 @@ export default function Home() {
     setScoreInfo(null)
     setViolations({})
     setHasUnsavedEdits(false)
+    setIsPublished(false)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -305,6 +311,37 @@ export default function Home() {
     }
   }
 
+  // ── Publish / unpublish ───────────────────────────────────────────────────
+
+  const handlePublish = async () => {
+    if (!runId) return
+    // Auto-save before publishing so the backend has the latest assignments
+    if (hasUnsavedEdits) await persistEdits(true)
+    setPublishing(true)
+    try {
+      if (isPublished) {
+        await unpublishSchedule(runId)
+        setIsPublished(false)
+        toast.success('Schedule unpublished.')
+      } else {
+        await publishSchedule(runId)
+        setIsPublished(true)
+        toast.success('Schedule published! Employees can now see their shifts.')
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? 'Failed to update published status.')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  // ── Sick-call substitute finder ────────────────────────────────────────────
+
+  const handleFindSubstitutes = useCallback(async (shiftId) => {
+    if (!runId) return []
+    return getSubstitutes(runId, shiftId, { assignments, employees, shifts })
+  }, [runId, assignments, employees, shifts])
+
   const hasData = employees.length > 0 && shifts.length > 0
   const canExport = solved || hasUnsavedEdits
 
@@ -401,7 +438,15 @@ export default function Home() {
         <div className="bg-white rounded-xl shadow-soft">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h2 className="font-semibold text-dark">{t('schedulePreview')}</h2>
+              <h2 className="font-semibold text-dark flex items-center gap-2">
+                {t('schedulePreview')}
+                {isPublished && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                    <GlobeAltIcon className="h-3 w-3" />
+                    Published
+                  </span>
+                )}
+              </h2>
               <p className="text-xs text-muted mt-0.5">
                 {t('statLine', employees.length, shifts.length, [...new Set(shifts.map(s => s.date))].length)}
                 {solved && scoreInfo && (() => {
@@ -458,6 +503,20 @@ export default function Home() {
                   {t('downloadExcel')}
                 </Button>
               )}
+
+              {/* Publish */}
+              {canExport && (
+                <Button
+                  variant={isPublished ? 'secondary' : 'teal'}
+                  size="sm"
+                  onClick={handlePublish}
+                  loading={publishing}
+                  disabled={publishing}
+                >
+                  <GlobeAltIcon className="h-4 w-4" />
+                  {isPublished ? 'Unpublish' : 'Publish schedule'}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -475,6 +534,7 @@ export default function Home() {
               onReassign={handleReassign}
               onDeleteShift={handleDeleteShift}
               onCreateShift={handleCreateShift}
+              onFindSubstitutes={handleFindSubstitutes}
               editable
             />
           )}
