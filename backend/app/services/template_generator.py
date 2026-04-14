@@ -42,7 +42,7 @@ _STRINGS = {
         "av_hints": [
             "Must match a name in the Employees sheet",
             "Preferred \u00b7 Unpreferred \u00b7 Unavailable",
-            'Weekday name (e.g. "Monday") OR specific date (YYYY-MM-DD)',
+            'Weekday name (e.g. "Monday") OR specific date (DD-MM-YYYY)',
             "HH:MM \u2014 leave blank for all-day rule",
             "HH:MM \u2014 leave blank for all-day rule",
         ],
@@ -51,7 +51,7 @@ _STRINGS = {
         "av_dv_error_title": "Invalid type",
         "sh_headers": ["Date", "Start Time", "End Time", "Required Skills", "Min Staff"],
         "sh_hints": [
-            "YYYY-MM-DD format",
+            "DD-MM-YYYY format",
             "HH:MM (24-hour)",
             "HH:MM (24-hour)",
             "Comma-separated skills required (leave blank for any employee)",
@@ -81,7 +81,7 @@ _STRINGS = {
         "av_hints": [
             "Debe coincidir con un nombre en la hoja Empleados",
             "Preferido \u00b7 No Preferido \u00b7 No Disponible",
-            'Nombre del d\u00eda (ej. "Lunes") O fecha espec\u00edfica (YYYY-MM-DD)',
+            'Nombre del d\u00eda (ej. "Lunes") O fecha espec\u00edfica (DD-MM-YYYY)',
             "HH:MM \u2014 dejar en blanco para regla de todo el d\u00eda",
             "HH:MM \u2014 dejar en blanco para regla de todo el d\u00eda",
         ],
@@ -91,7 +91,7 @@ _STRINGS = {
         "av_dv_error_title": "Tipo no v\u00e1lido",
         "sh_headers": ["Fecha", "Hora Inicio", "Hora Fin", "Habilidades Requeridas", "Personal M\u00edn"],
         "sh_hints": [
-            "Formato YYYY-MM-DD",
+            "Formato DD-MM-YYYY",
             "HH:MM (formato 24h)",
             "HH:MM (formato 24h)",
             "Habilidades requeridas separadas por comas (dejar en blanco para cualquier empleado)",
@@ -177,7 +177,7 @@ def build_template_bytes(lang: str = "en") -> bytes:
         ["Alice Johnson",  "Preferred",   "Tuesday",   "08:00", "14:00"],
         ["Alice Johnson",  "Preferred",   "Wednesday", "08:00", "14:00"],
         ["Alice Johnson",  "Unavailable", "Sunday",    "",      ""     ],
-        ["Bob Smith",      "Unavailable", today.strftime("%Y-%m-%d"), "", ""],
+        ["Bob Smith",      "Unavailable", today.strftime("%d-%m-%Y"), "", ""],
         ["Bob Smith",      "Unpreferred", "Friday",    "18:00", "23:00"],
         ["Carol White",    "Preferred",   "Saturday",  "",      ""     ],
         ["Carol White",    "Preferred",   "Sunday",    "",      ""     ],
@@ -209,7 +209,7 @@ def build_template_bytes(lang: str = "en") -> bytes:
     ws_shifts.freeze_panes = "A3"
 
     for i in range(7):
-        d = (today + timedelta(days=i)).strftime("%Y-%m-%d")
+        d = (today + timedelta(days=i)).strftime("%d-%m-%Y")
         rows = [
             [d, "08:00", "16:00", "cashier, first_aid", 1],
             [d, "08:00", "16:00", "cashier",             1],
