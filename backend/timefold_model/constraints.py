@@ -8,6 +8,7 @@ DESIGN RULES to avoid JPyInterpreter PythonCell cast errors:
 """
 
 from timefold.solver.score import (
+    ConstraintCollectors,
     ConstraintFactory,
     HardSoftScore,
     Joiners,
@@ -28,11 +29,24 @@ _DEFAULT_CONFIG = {"min_rest_hours": 11, "max_weekly_hours": 48}
 # Mutable module-level config — replaced before each solve call
 _active_config: dict = dict(_DEFAULT_CONFIG)
 
+# Per-solve fairness target — set by scheduler.py before each solve
+# target_weekly_mins: fair share of hours per employee per week (in minutes)
+_fairness_config: dict = {"target_weekly_mins": 0}
+
 
 def set_country_config(country: str | None) -> None:
     """Called by the scheduler before solving to activate the right rule set."""
     global _active_config
     _active_config = dict(_COUNTRY_CONFIGS.get(country or "", _DEFAULT_CONFIG))
+
+
+def set_fairness_config(target_weekly_mins: int) -> None:
+    """Called by the scheduler before solving with the per-employee weekly fair share.
+
+    target_weekly_mins = total_shift_minutes / num_employees / num_weeks
+    """
+    global _fairness_config
+    _fairness_config["target_weekly_mins"] = target_weekly_mins
 
 
 def _rest_gap_mins(shift_a: ShiftAssignment, shift_b: ShiftAssignment) -> int:
@@ -76,6 +90,8 @@ def define_constraints(factory: ConstraintFactory):
         preferred_shift(factory),
         unpreferred_shift(factory),
         spread_workload(factory),
+        weekly_overtime(factory),
+        balance_workload(factory),
     ]
 
 
@@ -194,4 +210,50 @@ def spread_workload(factory: ConstraintFactory):
         .filter(lambda a: a.employee is not None)
         .reward(HardSoftScore.ONE_SOFT)
         .as_constraint("Reward filled shifts")
+    )
+
+
+def weekly_overtime(factory: ConstraintFactory):
+    """Soft-penalise each hour an employee works over the per-country weekly maximum.
+
+    Uses pre-computed iso_week and duration_mins on Shift (flat attribute access —
+    no arithmetic in the JVM transpiler).  Penalises proportionally: 1 soft point
+    per hour over the limit, per employee per week.
+    """
+    limit = _active_config["max_weekly_hours"] * 60
+    return (
+        factory.for_each(ShiftAssignment)
+        .filter(lambda a: a.employee is not None and a.shift is not None)
+        .group_by(
+            lambda a: a.employee.id + "|" + a.shift.iso_week,
+            ConstraintCollectors.sum(lambda a: a.shift.duration_mins),
+        )
+        .filter(lambda _key, total: total > limit)
+        .penalize(HardSoftScore.ONE_SOFT, lambda _key, total: (total - limit) // 60)
+        .as_constraint("Weekly overtime")
+    )
+
+
+def balance_workload(factory: ConstraintFactory):
+    """Soft-penalise hours worked beyond the per-employee weekly fair share (+20% buffer).
+
+    The target is set by scheduler.py before each solve:
+        total_shift_minutes / num_employees / num_weeks
+
+    A 20 % buffer avoids penalising unavoidable minor imbalances caused by skill
+    constraints.  If no target has been set the constraint is effectively disabled.
+    """
+    target = _fairness_config["target_weekly_mins"]
+    # 20 % headroom; fall back to weekly max so constraint never mis-fires
+    threshold = int(target * 1.2) if target > 0 else _active_config["max_weekly_hours"] * 60
+    return (
+        factory.for_each(ShiftAssignment)
+        .filter(lambda a: a.employee is not None and a.shift is not None)
+        .group_by(
+            lambda a: a.employee.id + "|" + a.shift.iso_week,
+            ConstraintCollectors.sum(lambda a: a.shift.duration_mins),
+        )
+        .filter(lambda _key, total: total > threshold)
+        .penalize(HardSoftScore.ONE_SOFT, lambda _key, total: (total - threshold) // 60)
+        .as_constraint("Workload balance")
     )

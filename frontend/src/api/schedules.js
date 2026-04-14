@@ -26,7 +26,29 @@ export async function uploadExcel(file) {
 export async function solveSchedule(run_id, timeout_seconds = null) {
   const body = { run_id }
   if (timeout_seconds) body.timeout_seconds = timeout_seconds
+  // Returns 202 immediately: { run_id, status: "processing" }
+  // Caller should poll getSchedule() until status != "processing"
   const { data } = await client.post('/solve', body)
+  return data
+}
+
+export async function getOvertimeReport(date_from, date_to) {
+  const { data } = await client.get('/schedules/overtime-report', {
+    params: { date_from, date_to },
+  })
+  return data
+}
+
+export async function deleteSchedule(run_id) {
+  await client.delete(`/schedules/${run_id}`)
+}
+
+export async function renameSchedule(run_id, name, currentAssignments = []) {
+  // Passes current assignments to avoid overwriting them — name field triggers the rename
+  const { data } = await client.patch(`/schedules/${run_id}/assignments`, {
+    assignments: currentAssignments,
+    name,
+  })
   return data
 }
 

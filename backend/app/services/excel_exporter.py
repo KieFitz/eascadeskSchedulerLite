@@ -53,20 +53,15 @@ _STRINGS = {
         "sheet2": "Shift Schedule",
         "sheet3": "All Assignments",
         "sheet4": "Employee Stats",
-        "sheet5": "Substitutes",
+        "sheet5": "Replacements",
         # Sheet 5 column headers
-        "s5_date":      "Date",
-        "s5_start":     "Start",
-        "s5_end":       "End",
-        "s5_skills":    "Required Skills",
-        "s5_assigned":  "Assigned To",
-        "s5_sub1":      "Substitute 1",
-        "s5_why1":      "Why",
-        "s5_sub2":      "Substitute 2",
-        "s5_why2":      "Why",
-        "s5_sub3":      "Substitute 3",
-        "s5_why3":      "Why",
-        "s5_note":      "If the assigned employee calls in sick, these are the next best available substitutes (ranked by skill match, availability, and schedule fit).",
+        "s5_date":        "Date",
+        "s5_start":       "Start",
+        "s5_end":         "End",
+        "s5_skills":      "Required Skills",
+        "s5_assigned":    "Assigned To",
+        "s5_replacement": "Replacement",
+        "s5_note":        "If the assigned employee calls in sick, select a replacement from the dropdown — options are ranked by skill match and schedule fit.",
         "employee": "Employee",
         "unassigned": "UNASSIGNED",
         # Sheet 2 column headers
@@ -105,19 +100,14 @@ _STRINGS = {
         "sheet2": "Horario de Turnos",
         "sheet3": "Todas las Asignaciones",
         "sheet4": "Estad\u00edsticas de Empleados",
-        "sheet5": "Sustitutos",
-        "s5_date":      "Fecha",
-        "s5_start":     "Inicio",
-        "s5_end":       "Fin",
-        "s5_skills":    "Habilidades Requeridas",
-        "s5_assigned":  "Asignado a",
-        "s5_sub1":      "Sustituto 1",
-        "s5_why1":      "Por qu\u00e9",
-        "s5_sub2":      "Sustituto 2",
-        "s5_why2":      "Por qu\u00e9",
-        "s5_sub3":      "Sustituto 3",
-        "s5_why3":      "Por qu\u00e9",
-        "s5_note":      "Si el empleado asignado llama enfermo, estos son los mejores sustitutos disponibles (clasificados por habilidades, disponibilidad y encaje de horario).",
+        "sheet5": "Reemplazos",
+        "s5_date":        "Fecha",
+        "s5_start":       "Inicio",
+        "s5_end":         "Fin",
+        "s5_skills":      "Habilidades Requeridas",
+        "s5_assigned":    "Asignado a",
+        "s5_replacement": "Reemplazo",
+        "s5_note":        "Si el empleado asignado llama enfermo, selecciona un reemplazo del desplegable — las opciones están clasificadas por habilidades y encaje de horario.",
         "employee": "Empleado",
         "unassigned": "SIN ASIGNAR",
         # Sheet 2
@@ -593,22 +583,23 @@ def _rank_substitutes_excel(
     shifts: list[dict],
     assignments: list[dict],
     target_shift: dict,
-    max_results: int = 3,
-) -> list[dict]:
-    """Simple substitute ranking for the Excel sheet.
+    assigned_employee_id: str | None = None,
+) -> list[str]:
+    """Return employee names ranked by suitability to cover the given shift.
 
-    Factors: skill match, same-day schedule overlap.
-    (Availability spans are included if present in employee dicts.)
+    Excludes the currently assigned employee (they need a replacement, not
+    themselves). Ranks by skill match then same-day schedule overlap.
+    Returns names only — used to populate a dropdown in the Excel sheet.
     """
     shift_id   = target_shift.get("id", "")
     shift_date = target_shift.get("date", "")
     s_start    = _to_mins(target_shift.get("start_time", ""))
-    s_end      = _to_mins(target_shift.get("end_time", "") )
+    s_end      = _to_mins(target_shift.get("end_time", ""))
     if s_end <= s_start:
         s_end += 1440
     required = set(target_shift.get("required_skills") or [])
 
-    # Same-day overlap map
+    # Build same-day overlap map
     shift_by_id = {s.get("id", ""): s for s in shifts}
     overlapping_emps: set[str] = set()
     for a in assignments:
@@ -628,30 +619,18 @@ def _rank_substitutes_excel(
 
     results = []
     for emp in employees:
-        eid       = emp.get("id", "")
+        eid = emp.get("id", "")
+        # Never suggest the person who needs replacing
+        if eid == assigned_employee_id:
+            continue
         emp_skills = set(emp.get("skills") or [])
         skills_ok  = not required or required.issubset(emp_skills)
-        missing    = sorted(required - emp_skills)
         overlaps   = eid in overlapping_emps
-
         score = (4 if skills_ok else 0) + (-10 if overlaps else 0)
-
-        reasons = []
-        if not skills_ok:
-            reasons.append(f"Missing: {', '.join(missing)}")
-        if overlaps:
-            reasons.append("Already scheduled")
-        if not reasons:
-            reasons.append("Available")
-
-        results.append({
-            "name":   emp.get("name", ""),
-            "score":  score,
-            "reason": " · ".join(reasons),
-        })
+        results.append({"name": emp.get("name", ""), "score": score})
 
     results.sort(key=lambda x: (-x["score"], x["name"]))
-    return results[:max_results]
+    return [r["name"] for r in results]
 
 
 def _build_substitutes(
@@ -661,11 +640,14 @@ def _build_substitutes(
     assignments: list[dict],
     lang: str,
 ) -> None:
+    from openpyxl.worksheet.datavalidation import DataValidation  # noqa: PLC0415
+
     ws = wb.create_sheet(_s(lang, "sheet5"))
+
+    num_cols = 6  # Date, Start, End, Skills, Assigned To, Replacement
 
     # Introductory note spanning all columns
     note_row = 1
-    num_cols = 11
     ws.cell(row=note_row, column=1, value=_s(lang, "s5_note"))
     ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=num_cols)
     note_cell = ws.cell(row=note_row, column=1)
@@ -681,52 +663,65 @@ def _build_substitutes(
         _s(lang, "s5_end"),
         _s(lang, "s5_skills"),
         _s(lang, "s5_assigned"),
-        _s(lang, "s5_sub1"),
-        _s(lang, "s5_why1"),
-        _s(lang, "s5_sub2"),
-        _s(lang, "s5_why2"),
-        _s(lang, "s5_sub3"),
-        _s(lang, "s5_why3"),
+        _s(lang, "s5_replacement"),
     ]
     for c, h in enumerate(headers, start=1):
         ws.cell(row=header_row, column=c, value=h)
     _apply_header(ws, header_row, num_cols)
 
-    # Build an assignment lookup: shift_id → assignment
+    # Build assignment lookup: shift_id → assignment
     assign_by_shift = {a.get("shift_id", ""): a for a in assignments}
 
-    # Sort all shifts by date then start time
     unassigned_label = _s(lang, "unassigned")
     sorted_shifts = sorted(shifts, key=lambda s: (s.get("date", ""), s.get("start_time", "")))
 
     row_idx = header_row + 1
     for i, shift in enumerate(sorted_shifts):
         a = assign_by_shift.get(shift.get("id", ""), {})
-        assigned_name = a.get("employee_name") or unassigned_label
-        skills        = shift.get("required_skills") or []
-        skills_str    = ", ".join(skills)
+        assigned_emp_id   = a.get("employee_id")
+        assigned_name     = a.get("employee_name") or unassigned_label
+        skills_str        = ", ".join(shift.get("required_skills") or [])
 
-        subs = _rank_substitutes_excel(employees, shifts, assignments, shift, max_results=3)
+        ranked_names = _rank_substitutes_excel(
+            employees, shifts, assignments, shift,
+            assigned_employee_id=assigned_emp_id,
+        )
 
-        row_data: list = [
+        row_data = [
             shift.get("date", ""),
             shift.get("start_time", ""),
             shift.get("end_time", ""),
             skills_str,
             assigned_name,
+            "",  # Replacement — filled via dropdown
         ]
-        for sub in subs:
-            row_data += [sub["name"], sub["reason"]]
-        while len(row_data) < num_cols:
-            row_data.append("")
-
         for c, val in enumerate(row_data, start=1):
             cell = ws.cell(row=row_idx, column=c, value=val)
             cell.alignment = CENTER
             cell.border    = THIN_BORDER
 
-        # Highlight unassigned shifts in amber
-        if not a.get("employee_id"):
+        # Per-row dropdown in column F (Replacement)
+        if ranked_names:
+            # Excel formula1 list has a 255-char limit — truncate gracefully
+            formula_str = ",".join(ranked_names)
+            if len(formula_str) > 253:
+                # Drop trailing names until it fits
+                parts = ranked_names[:]
+                while parts and len(",".join(parts)) > 253:
+                    parts.pop()
+                formula_str = ",".join(parts)
+            if formula_str:
+                dv = DataValidation(
+                    type="list",
+                    formula1=f'"{formula_str}"',
+                    allow_blank=True,
+                    showDropDown=False,
+                )
+                dv.add(f"F{row_idx}")
+                ws.add_data_validation(dv)
+
+        # Row shading
+        if not assigned_emp_id:
             for c in range(1, num_cols + 1):
                 ws.cell(row=row_idx, column=c).fill = PatternFill("solid", fgColor="FEF3C7")
         elif i % 2 == 0:
@@ -736,7 +731,7 @@ def _build_substitutes(
         row_idx += 1
 
     # Column widths
-    widths = [14, 10, 10, 28, 22, 22, 30, 22, 30, 22, 30]
+    widths = [14, 10, 10, 28, 24, 24]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 

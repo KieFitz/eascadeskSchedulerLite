@@ -31,12 +31,19 @@ async def upload_excel(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Derive date range from the uploaded shifts
+    shift_dates = [s["date"] for s in parsed["shifts"] if s.get("date")]
+    date_from = date.fromisoformat(min(shift_dates)) if shift_dates else None
+    date_to   = date.fromisoformat(max(shift_dates)) if shift_dates else None
+
     today = date.today()
     run = ScheduleRun(
         user_id=current_user.id,
         status="pending",
         year=today.year,
         month=today.month,
+        date_from=date_from,
+        date_to=date_to,
         employees_data=parsed["employees"],
         shifts_data=parsed["shifts"],
     )
@@ -45,9 +52,11 @@ async def upload_excel(
     await db.refresh(run)
 
     return {
-        "run_id": run.id,
-        "employees": parsed["employees"],
-        "shifts": parsed["shifts"],
-        "employee_count": len(parsed["employees"]),
+        "run_id":          run.id,
+        "employees":       parsed["employees"],
+        "shifts":          parsed["shifts"],
+        "employee_count":  len(parsed["employees"]),
         "shift_slot_count": len(parsed["shifts"]),
+        "date_from":       str(date_from) if date_from else None,
+        "date_to":         str(date_to)   if date_to   else None,
     }

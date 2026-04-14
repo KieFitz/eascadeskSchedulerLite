@@ -1,7 +1,8 @@
 from datetime import date, datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from sqlalchemy import func, select
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
@@ -40,16 +41,102 @@ async def get_usage(
     }
 
 
-@router.get("/", response_model=list[ScheduleRunOut])
-async def list_schedules(
+@router.get("/overtime-report")
+async def overtime_report(
+    date_from: date = Query(..., description="Start of the reporting window (YYYY-MM-DD)"),
+    date_to:   date = Query(..., description="End of the reporting window (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Aggregate scheduled hours per employee across all completed/published runs
+    whose date range overlaps the requested window.
+
+    Useful for spotting cumulative overtime across multiple schedule periods.
+    """
+    # Load all runs that overlap [date_from, date_to] and are completed or published
+    result = await db.execute(
+        select(ScheduleRun).where(
+            ScheduleRun.user_id == current_user.id,
+            ScheduleRun.status.in_(["completed"]),
+            # Overlap: run.date_from <= date_to AND run.date_to >= date_from
+            ScheduleRun.date_from <= date_to,
+            ScheduleRun.date_to   >= date_from,
+        )
+    )
+    runs = result.scalars().all()
+
+    # Aggregate hours per employee across all overlapping runs
+    totals: dict[str, dict] = {}  # name → {shifts, hours}
+
+    def _calc_hours(start: str, end: str) -> float:
+        try:
+            sh, sm = map(int, start.split(":"))
+            eh, em = map(int, end.split(":"))
+            mins = eh * 60 + em - sh * 60 - sm
+            if mins < 0:
+                mins += 1440
+            return mins / 60
+        except Exception:
+            return 0.0
+
+    for run in runs:
+        assignments = (run.result_data or {}).get("assignments", [])
+        for a in assignments:
+            name = a.get("employee_name")
+            if not name:
+                continue
+            # Only count shifts within the requested window
+            shift_date = a.get("date", "")
+            if shift_date < str(date_from) or shift_date > str(date_to):
+                continue
+            if name not in totals:
+                totals[name] = {"shifts": 0, "hours": 0.0}
+            totals[name]["shifts"] += 1
+            totals[name]["hours"]  += _calc_hours(
+                a.get("start_time", ""), a.get("end_time", "")
+            )
+
+    # Compute number of weeks in the window to derive a weekly average
+    days_in_window = (date_to - date_from).days + 1
+    weeks_in_window = max(days_in_window / 7, 1)
+
+    employees_out = []
+    for name, data in sorted(totals.items()):
+        avg_weekly = round(data["hours"] / weeks_in_window, 1)
+        employees_out.append({
+            "name":              name,
+            "total_hours":       round(data["hours"], 2),
+            "total_shifts":      data["shifts"],
+            "avg_hours_per_week": avg_weekly,
+            # Flag if average exceeds 48 h/week (EU Working Time Directive default)
+            "exceeds_48h_week":  avg_weekly > 48,
+        })
+
+    return {
+        "period": {"from": str(date_from), "to": str(date_to)},
+        "runs_included": len(runs),
+        "employees": employees_out,
+    }
+
+
+@router.get("/", response_model=list[ScheduleRunOut])
+async def list_schedules(
+    status: Optional[str] = Query(default=None, description="Filter by status (pending, processing, completed, failed)"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    filters = [ScheduleRun.user_id == current_user.id]
+    if status:
+        filters.append(ScheduleRun.status == status)
+
     result = await db.execute(
         select(ScheduleRun)
-        .where(ScheduleRun.user_id == current_user.id)
+        .where(*filters)
         .order_by(ScheduleRun.created_at.desc())
-        .limit(20)
+        .limit(limit)
+        .offset(offset)
     )
     return result.scalars().all()
 
@@ -117,6 +204,10 @@ async def update_assignments(
     # If the manager added / removed shifts, persist the updated shift list too
     if body.shifts is not None:
         run.shifts_data = body.shifts
+
+    # Optional rename
+    if body.name is not None:
+        run.name = body.name
 
     # Clear the solver score — it's no longer accurate after manual edits
     run.score_info = None

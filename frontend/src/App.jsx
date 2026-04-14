@@ -2,7 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
-import Home from './pages/Home'
+import ScheduleList from './pages/ScheduleList'
+import ScheduleEditor from './pages/ScheduleEditor'
 import Rules from './pages/Rules'
 import Pricing from './pages/Pricing'
 
@@ -14,16 +15,29 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login"  element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+
+      {/* Schedule list — default landing page */}
       <Route
-        path="/"
+        path="/schedules"
         element={
           <ProtectedRoute>
-            <Home />
+            <ScheduleList />
           </ProtectedRoute>
         }
       />
+
+      {/* Schedule editor — parameterised by run ID */}
+      <Route
+        path="/schedules/:runId"
+        element={
+          <ProtectedRoute>
+            <ScheduleEditor />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/rules"
         element={
@@ -40,7 +54,10 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+
+      {/* Legacy / root → schedules list */}
+      <Route path="/" element={<Navigate to="/schedules" replace />} />
+      <Route path="*" element={<Navigate to="/schedules" replace />} />
     </Routes>
   )
 }

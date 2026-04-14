@@ -18,7 +18,7 @@ from timefold.solver.config import (
 
 from app.core.config import settings
 from timefold_model.domain import Employee, ScheduleSolution, Shift, ShiftAssignment
-from timefold_model.constraints import define_constraints, set_country_config
+from timefold_model.constraints import define_constraints, set_country_config, set_fairness_config
 
 
 # ── Time helpers (pure Python, never transpiled) ─────────────────────────────
@@ -169,6 +169,30 @@ def _solve_sync(
     # Apply the country's labour-law constraint config before building the solver
     set_country_config(country)
 
+    # Pre-compute per-shift derived values (pure Python, never seen by JVM)
+    # iso_week: "YYYYWww" key used for weekly group_by in constraints
+    # duration_mins: overnight-aware shift length used by sum collector
+    shift_meta: dict[str, dict] = {}
+    iso_weeks_seen: set[tuple] = set()
+    for s in shifts_data:
+        d = date.fromisoformat(s["date"])
+        ic = d.isocalendar()
+        iso_week_str = f"{ic[0]}W{ic[1]:02d}"
+        iso_weeks_seen.add((ic[0], ic[1]))
+        start = _hhmm_to_mins(s["start_time"])
+        end   = _hhmm_to_mins(s["end_time"])
+        dur   = end - start
+        if dur <= 0:
+            dur += 1440
+        shift_meta[s["id"]] = {"iso_week": iso_week_str, "duration_mins": dur}
+
+    # Set fairness target: total shift minutes / employees / weeks
+    total_shift_mins = sum(m["duration_mins"] for m in shift_meta.values())
+    num_weeks = max(len(iso_weeks_seen), 1)
+    num_emps  = max(len(employees_data), 1)
+    target_weekly_mins = total_shift_mins // num_emps // num_weeks
+    set_fairness_config(target_weekly_mins)
+
     # Pre-compute availability in pure Python — never seen by Timefold's JVM transpiler
     avail_sets = _precompute_shift_id_sets(employees_data, shifts_data)
 
@@ -201,6 +225,7 @@ def _solve_sync(
 
     assignments = []
     for s in shifts_data:
+        meta = shift_meta[s["id"]]
         shift = Shift(
             id=s["id"],
             date=date.fromisoformat(s["date"]),
@@ -208,6 +233,8 @@ def _solve_sync(
             end_time=_hhmm_to_mins(s["end_time"]),
             required_skills=s.get("required_skills", []),
             slot_index=s["slot_index"],
+            iso_week=meta["iso_week"],
+            duration_mins=meta["duration_mins"],
         )
         sa = ShiftAssignment(id=s["id"], shift=shift)
         # Seed from previous solution so the solver improves rather than restarts
@@ -291,6 +318,10 @@ def find_substitutes(
 
     required_skills = set(target.get("required_skills") or [])
 
+    # Find the employee currently assigned to this shift (they are excluded from results)
+    current_assignment = next((a for a in assignments_data if a.get("shift_id") == shift_id), None)
+    current_employee_id = current_assignment.get("employee_id") if current_assignment else None
+
     # Per-employee list of same-day shifts they're already assigned to
     shift_by_id = {s["id"]: s for s in shifts_data}
     emp_day_shifts: dict[str, list[dict]] = {}
@@ -305,6 +336,9 @@ def find_substitutes(
 
     results: list[dict] = []
     for emp in employees_data:
+        # Exclude the employee who is currently assigned — they need a replacement, not themselves
+        if emp["id"] == current_employee_id:
+            continue
         emp_id     = emp["id"]
         emp_skills = set(emp.get("skills") or [])
         avail      = avail_sets.get(emp_id, {})
@@ -493,5 +527,51 @@ def check_constraints(
                                 ),
                                 "severity": "hard",
                             })
+
+    # ── Weekly overtime (soft) ───────────────────────────────────────────────
+    max_weekly_h = _active_config.get("max_weekly_hours", 48)
+    emp_week_hours: dict[tuple, float] = {}
+
+    for a in assignments_data:
+        eid = a.get("employee_id")
+        if not eid:
+            continue
+        shift = shift_by_id.get(a.get("shift_id", ""))
+        if not shift:
+            continue
+        d = date.fromisoformat(shift["date"])
+        ic = d.isocalendar()
+        week_key = (eid, int(ic[0]), int(ic[1]))
+        s_mins = _hhmm_to_mins(shift["start_time"])
+        e_mins = _hhmm_to_mins(shift["end_time"])
+        dur = e_mins - s_mins
+        if dur <= 0:
+            dur += 1440
+        emp_week_hours[week_key] = emp_week_hours.get(week_key, 0.0) + dur / 60
+
+    # Emit one soft violation per shift that belongs to an overtime week
+    for a in assignments_data:
+        eid = a.get("employee_id")
+        if not eid:
+            continue
+        shift = shift_by_id.get(a.get("shift_id", ""))
+        if not shift:
+            continue
+        d = date.fromisoformat(shift["date"])
+        ic = d.isocalendar()
+        week_key = (eid, int(ic[0]), int(ic[1]))
+        total_h = emp_week_hours.get(week_key, 0.0)
+        if total_h > max_weekly_h:
+            emp = emp_by_id.get(eid)
+            emp_name = emp["name"] if emp else eid
+            violations.append({
+                "shift_id": a["shift_id"],
+                "rule": "Weekly overtime",
+                "message": (
+                    f"{emp_name} is scheduled {total_h:.1f}h in week {int(ic[1])} "
+                    f"(max {max_weekly_h}h)."
+                ),
+                "severity": "soft",
+            })
 
     return violations

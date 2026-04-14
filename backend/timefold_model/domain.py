@@ -65,16 +65,17 @@ class Employee:
 class Shift:
     id: str
     date: date
-    start_time: int  # minutes since midnight, e.g. 480 = 08:00
-    end_time: int    # minutes since midnight, e.g. 960 = 16:00
+    start_time: int    # minutes since midnight, e.g. 480 = 08:00
+    end_time: int      # minutes since midnight, e.g. 960 = 16:00
     required_skills: list[str]
     slot_index: int
+    # Pre-computed in scheduler.py — used by group_by constraints without any
+    # arithmetic in the JVM (flat attribute access only).
+    iso_week: str      # ISO year+week, e.g. "2026W15" — group key for weekly checks
+    duration_mins: int # shift length in minutes (overnight-aware)
 
     def duration_hours(self) -> float:
-        end = self.end_time
-        if end <= self.start_time:
-            end = end + 1440  # overnight shift
-        return (end - self.start_time) / 60
+        return self.duration_mins / 60
 
     def overlaps(self, other: "Shift") -> bool:
         if self.date != other.date:

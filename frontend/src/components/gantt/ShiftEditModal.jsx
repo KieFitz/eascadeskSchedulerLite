@@ -71,7 +71,7 @@ export default function ShiftEditModal({
       const subs = await onFindSubstitutes(assignment.shift_id)
       setSubstitutes(subs)
     } catch {
-      setSubsError('Could not load substitutes. Please try again.')
+      setSubsError('Could not load replacements. Please try again.')
     } finally {
       setLoadingSubs(false)
     }
@@ -131,13 +131,13 @@ export default function ShiftEditModal({
         ))}
       </select>
 
-      {/* Sick-call substitute finder */}
+      {/* Replacement finder */}
       {onFindSubstitutes && (
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-dark flex items-center gap-1.5">
               <UserGroupIcon className="h-3.5 w-3.5 text-brand-purple" />
-              Find substitute
+              Find replacement
             </span>
             <button
               onClick={handleFindSubstitutes}
@@ -156,7 +156,7 @@ export default function ShiftEditModal({
           {substitutes !== null && (
             <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               {substitutes.length === 0 ? (
-                <p className="px-3 py-2.5 text-xs text-muted text-center">No employees found.</p>
+                <p className="px-3 py-2.5 text-xs text-muted text-center">No replacements found.</p>
               ) : substitutes.slice(0, 6).map((sub) => (
                 <button
                   key={sub.employee_id}
