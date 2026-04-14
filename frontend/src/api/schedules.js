@@ -40,6 +40,26 @@ export async function getSchedule(run_id) {
   return data
 }
 
+export async function getUsage() {
+  const { data } = await client.get('/schedules/usage')
+  return data
+}
+
+export async function updateAssignments(run_id, assignments, shifts = null) {
+  const body = { assignments }
+  if (shifts !== null) body.shifts = shifts
+  const { data } = await client.patch(`/schedules/${run_id}/assignments`, body)
+  return data
+}
+
+export async function validateSchedule(run_id, assignments, employees = null, shifts = null) {
+  const body = { assignments }
+  if (employees !== null) body.employees = employees
+  if (shifts !== null) body.shifts = shifts
+  const { data } = await client.post(`/schedules/${run_id}/validate`, body)
+  return data
+}
+
 export async function downloadExport(run_id) {
   const response = await client.get(`/export/${run_id}`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(new Blob([response.data]))
