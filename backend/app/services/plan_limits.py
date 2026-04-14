@@ -1,8 +1,12 @@
 from datetime import date, timedelta
 
-FREE_ADVANCE_DAYS = 14
-PAID_ADVANCE_DAYS = 31
-FREE_MONTHLY_SOLVES = 1
+# Scheduling horizon — how far ahead managers can plan
+FREE_ADVANCE_DAYS  = 31   # 1 month
+PAID_ADVANCE_DAYS  = 62   # ~2 months (publish schedule ≥2 weeks before it starts)
+
+# Monthly auto-schedule quota
+FREE_MONTHLY_SOLVES = 5
+# Pro plan has no quota limit
 
 
 def max_advance_days(plan: str) -> int:
