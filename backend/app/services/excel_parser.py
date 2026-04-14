@@ -387,14 +387,14 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
 
         if not raw_date or not raw_start or not raw_end:
             continue
-        # Skip hint rows (English: "YYYY-MM-DD format", Spanish: "Formato YYYY-MM-DD")
-        if str(raw_date).strip().upper().startswith(("YYYY", "FORMATO")):
+        # Skip hint rows (English: "DD-MM-YYYY format", Spanish: "Formato DD-MM-YYYY")
+        if str(raw_date).strip().upper().startswith(("DD", "FORMATO")):
             continue
 
         try:
             shift_date = _to_date(raw_date)
         except Exception:
-            raise ValueError(f"Row {i}: invalid date '{raw_date}'. Use YYYY-MM-DD format.")
+            raise ValueError(f"Row {i}: invalid date '{raw_date}'. Use DD-MM-YYYY format.")
 
         if shift_date > cutoff:
             plan_label = "Pro" if plan == "paid" else "Free"
