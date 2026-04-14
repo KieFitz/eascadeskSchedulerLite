@@ -184,7 +184,7 @@ def _to_date(val: Any) -> date:
     if isinstance(val, date):
         return val
     from datetime import datetime
-    return datetime.strptime(str(val).strip(), "%Y-%m-%d").date()
+    return datetime.strptime(str(val).strip(), "%d-%m-%Y").date()
 
 
 def _row_idx(headers: list[str]) -> dict[str, int]:
@@ -356,7 +356,7 @@ def _parse_availability(ws) -> dict:
 def _is_date_string(s: str) -> bool:
     try:
         from datetime import datetime
-        datetime.strptime(s, "%Y-%m-%d")
+        datetime.strptime(s, "%d-%m-%Y")
         return True
     except ValueError:
         return False
