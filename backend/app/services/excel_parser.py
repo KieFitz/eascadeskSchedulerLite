@@ -1,6 +1,6 @@
 """Parse uploaded Excel files into structured dicts for Timefold."""
 
-from datetime import date, time
+from datetime import date, time, datetime
 from io import BytesIO
 from typing import Any
 
@@ -183,8 +183,16 @@ def _to_date(val: Any) -> date:
     """Normalise an openpyxl date/string cell value to a date object."""
     if isinstance(val, date):
         return val
+    
     from datetime import datetime
-    return datetime.strptime(str(val).strip(), "%d-%m-%Y").date()
+    
+    # Run it through our bulletproof normalizer first
+    norm_str = _normalize_date_format(val)
+    if norm_str:
+        # We know _normalize_date_format always outputs DD MM YYYY
+        return datetime.strptime(norm_str, "%d %m %Y").date()
+        
+    raise ValueError(f"Could not parse date: {val}")
 
 
 def _row_idx(headers: list[str]) -> dict[str, int]:
@@ -322,12 +330,18 @@ def _parse_availability(ws) -> dict:
             )
 
         day_str = _normalise_weekday(str(day_or_date).strip())
-        # Validate day/date value
-        if day_str not in WEEKDAY_NAMES and not _is_date_string(day_str):
-            raise ValueError(
-                f"Availability row {i}: Day/Date '{day_or_date}' must be a weekday name "
-                f"(e.g. 'Monday' / 'Lunes') or a date in YYYY-MM-DD format."
-            )
+        
+        # Validate day/date value using the new normalizer
+        if day_str not in WEEKDAY_NAMES:
+            normalized_date = _normalize_date_format(day_or_date)
+            if normalized_date:
+                # Override day_str with the clean "DD MM YYYY" string
+                day_str = normalized_date 
+            else:
+                raise ValueError(
+                    f"Availability row {i}: Day/Date '{day_or_date}' must be a weekday name "
+                    f"(e.g. 'Monday' / 'Lunes') or a valid date."
+                )
 
         start_str = None
         end_str = None
@@ -352,11 +366,41 @@ def _parse_availability(ws) -> dict:
 
     return result
 
+def _normalize_date_format(val) -> str | None:
+    """
+    Takes an Excel cell value (datetime or string) and forces it 
+    into the 'DD MM YYYY' format. Returns None if it fails.
+    """
+    # 1. If openpyxl already did the hard work and parsed it as a date
+    if isinstance(val, datetime):
+        return val.strftime("%d %m %Y")
+    
+    # 2. If it's a string, Excel might have forced slashes, dashes, or ISO format
+    s = str(val).strip()
+    
+    # Check the most common formats Excel might spit out
+    possible_formats = (
+        "%d/%m/%Y",  # Slashes (common auto-format)
+        "%d-%m-%Y",  # Dashes
+        "%d %m %Y",  # Spaces (your strict preference)
+        "%Y-%m-%d"   # ISO standard (sometimes happens with web exports)
+    )
+    
+    for fmt in possible_formats:
+        try:
+            dt = datetime.strptime(s, fmt)
+            # Successfully parsed! Return it in your exact desired format
+            return dt.strftime("%d %m %Y")
+        except ValueError:
+            continue
+            
+    # Not a valid date format
+    return None
 
 def _is_date_string(s: str) -> bool:
     try:
         from datetime import datetime
-        datetime.strptime(s, "%d-%m-%Y")
+        datetime.strptime(s, "%d %m %Y")
         return True
     except ValueError:
         return False
@@ -393,8 +437,11 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
 
         try:
             shift_date = _to_date(raw_date)
+            # Ensure shift_date is just a date, not a datetime
+            if isinstance(shift_date, datetime):
+                shift_date = shift_date.date()
         except Exception:
-            raise ValueError(f"Row {i}: invalid date '{raw_date}'. Use DD-MM-YYYY format.")
+            raise ValueError(f"Row {i}: invalid date '{raw_date}'. Use DD MM YYYY format.")
 
         if shift_date > cutoff:
             plan_label = "Pro" if plan == "paid" else "Free"

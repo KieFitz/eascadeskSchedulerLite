@@ -5,6 +5,13 @@ DESIGN RULES to avoid JPyInterpreter PythonCell cast errors:
   - NO nested functions (closures) inside constraint functions
   - Only use flat lambda expressions in filter/reward/penalize
   - Shift.start_time / end_time are ints (minutes since midnight), not time objects
+
+Thread-safety:
+  Constraints that depend on country config (min rest, weekly max) receive their
+  values via `build_constraint_provider()` parameters, captured as plain Python
+  ints in closures at *provider creation time* — not read from shared globals at
+  solve time.  This means concurrent solves for different countries are safe
+  even when using a shared SolverManager thread pool.
 """
 
 from timefold.solver.score import (
@@ -17,85 +24,48 @@ from timefold.solver.score import (
 
 from timefold_model.domain import ShiftAssignment
 
-# ── Country labour-law config ─────────────────────────────────────────────────
-# Set by the scheduler before each solve via set_country_config().
-_COUNTRY_CONFIGS: dict[str, dict] = {
-    "IE": {"min_rest_hours": 11, "max_weekly_hours": 48},
-    "GB": {"min_rest_hours": 11, "max_weekly_hours": 48},
-    "ES": {"min_rest_hours": 12, "max_weekly_hours": 40},
-}
-_DEFAULT_CONFIG = {"min_rest_hours": 11, "max_weekly_hours": 48}
 
-# Mutable module-level config — replaced before each solve call
-_active_config: dict = dict(_DEFAULT_CONFIG)
+def build_constraint_provider(min_rest_mins: int, max_weekly_mins: int):
+    """Return a Timefold constraint provider with config baked in.
 
-# Per-solve fairness target — set by scheduler.py before each solve
-# target_weekly_mins: fair share of hours per employee per week (in minutes)
-_fairness_config: dict = {"target_weekly_mins": 0}
+    Called once per country at SolverManager creation time so there is no
+    shared mutable state between concurrent solves.
 
-
-def set_country_config(country: str | None) -> None:
-    """Called by the scheduler before solving to activate the right rule set."""
-    global _active_config
-    _active_config = dict(_COUNTRY_CONFIGS.get(country or "", _DEFAULT_CONFIG))
-
-
-def set_fairness_config(target_weekly_mins: int) -> None:
-    """Called by the scheduler before solving with the per-employee weekly fair share.
-
-    target_weekly_mins = total_shift_minutes / num_employees / num_weeks
+    Parameters
+    ----------
+    min_rest_mins:
+        Minimum rest between consecutive shifts in minutes (e.g. 660 = 11 h).
+    max_weekly_mins:
+        Legal weekly hours cap in minutes (e.g. 2880 = 48 h).
     """
-    global _fairness_config
-    _fairness_config["target_weekly_mins"] = target_weekly_mins
+    # Balance threshold: 80 % of weekly max.
+    # E.g. for 48 h max → 38.4 h threshold.  The solver starts nudging towards
+    # more even distribution before anyone actually hits the legal limit.
+    balance_threshold = max_weekly_mins * 4 // 5
+
+    @constraint_provider
+    def _define_constraints(factory: ConstraintFactory):
+        return [
+            # ── Hard constraints ──────────────────────────────────────────
+            _unassigned_shift(factory),
+            _skills_mismatch(factory),
+            _overlapping_shifts(factory),
+            _unavailable_shift(factory),
+            _minimum_rest(factory, min_rest_mins),
+            # ── Soft constraints ──────────────────────────────────────────
+            _preferred_shift(factory),
+            _unpreferred_shift(factory),
+            _spread_workload(factory),
+            _weekly_overtime(factory, max_weekly_mins),
+            _balance_workload(factory, balance_threshold),
+        ]
+
+    return _define_constraints
 
 
-def _rest_gap_mins(shift_a: ShiftAssignment, shift_b: ShiftAssignment) -> int:
-    """
-    Compute the rest gap in minutes between two assigned shifts.
-    Shift times are ints (minutes since midnight).  Uses date ordinal for
-    cross-day arithmetic.  Returns 0 if shifts overlap.
-    No nested functions — avoids JPyInterpreter closure issues.
-    """
-    day_a = shift_a.shift.date.toordinal() * 1440
-    day_b = shift_b.shift.date.toordinal() * 1440
+# ── Hard constraints ──────────────────────────────────────────────────────────
 
-    start_a = day_a + shift_a.shift.start_time
-    end_a   = day_a + shift_a.shift.end_time
-    start_b = day_b + shift_b.shift.start_time
-    end_b   = day_b + shift_b.shift.end_time
-
-    # Handle overnight shifts
-    if end_a <= start_a:
-        end_a = end_a + 1440
-    if end_b <= start_b:
-        end_b = end_b + 1440
-
-    if end_a <= start_b:
-        return start_b - end_a
-    if end_b <= start_a:
-        return start_a - end_b
-    return 0  # overlapping — handled by overlapping_shifts
-
-
-@constraint_provider
-def define_constraints(factory: ConstraintFactory):
-    return [
-        # ── Hard constraints ──────────────────────────────────────────────────
-        unassigned_shift(factory),
-        skills_mismatch(factory),
-        overlapping_shifts(factory),
-        unavailable_shift(factory),
-        minimum_rest_between_shifts(factory),
-        # ── Soft constraints ──────────────────────────────────────────────────
-        preferred_shift(factory),
-        unpreferred_shift(factory),
-        spread_workload(factory),
-        weekly_overtime(factory),
-        balance_workload(factory),
-    ]
-
-
-def unassigned_shift(factory: ConstraintFactory):
+def _unassigned_shift(factory: ConstraintFactory):
     """Every shift slot must be filled."""
     return (
         factory.for_each(ShiftAssignment)
@@ -105,7 +75,7 @@ def unassigned_shift(factory: ConstraintFactory):
     )
 
 
-def skills_mismatch(factory: ConstraintFactory):
+def _skills_mismatch(factory: ConstraintFactory):
     """Employee must have all skills required by the shift."""
     return (
         factory.for_each(ShiftAssignment)
@@ -119,7 +89,7 @@ def skills_mismatch(factory: ConstraintFactory):
     )
 
 
-def overlapping_shifts(factory: ConstraintFactory):
+def _overlapping_shifts(factory: ConstraintFactory):
     """An employee cannot be assigned to two overlapping shifts."""
     return (
         factory.for_each_unique_pair(
@@ -137,7 +107,7 @@ def overlapping_shifts(factory: ConstraintFactory):
     )
 
 
-def unavailable_shift(factory: ConstraintFactory):
+def _unavailable_shift(factory: ConstraintFactory):
     """Employee must not be assigned during their unavailable windows."""
     return (
         factory.for_each(ShiftAssignment)
@@ -151,13 +121,35 @@ def unavailable_shift(factory: ConstraintFactory):
     )
 
 
-def minimum_rest_between_shifts(factory: ConstraintFactory):
+def _rest_gap_mins(shift_a: ShiftAssignment, shift_b: ShiftAssignment) -> int:
     """
-    Enforce the minimum rest period between consecutive shifts (labour law).
-    IE / GB: 11 h min rest   |   ES: 12 h min rest
+    Compute the rest gap in minutes between two assigned shifts.
+    Shift times are ints (minutes since midnight).  Uses date ordinal for
+    cross-day arithmetic.  Returns 0 if shifts overlap.
+    No nested functions — avoids JPyInterpreter closure issues.
     """
-    min_rest_mins = _active_config["min_rest_hours"] * 60
+    day_a = shift_a.shift.date.toordinal() * 1440
+    day_b = shift_b.shift.date.toordinal() * 1440
 
+    start_a = day_a + shift_a.shift.start_time
+    end_a   = day_a + shift_a.shift.end_time
+    start_b = day_b + shift_b.shift.start_time
+    end_b   = day_b + shift_b.shift.end_time
+
+    if end_a <= start_a:
+        end_a = end_a + 1440
+    if end_b <= start_b:
+        end_b = end_b + 1440
+
+    if end_a <= start_b:
+        return start_b - end_a
+    if end_b <= start_a:
+        return start_a - end_b
+    return 0
+
+
+def _minimum_rest(factory: ConstraintFactory, min_rest_mins: int):
+    """Enforce minimum rest between consecutive shifts (country labour law)."""
     return (
         factory.for_each_unique_pair(
             ShiftAssignment,
@@ -175,7 +167,9 @@ def minimum_rest_between_shifts(factory: ConstraintFactory):
     )
 
 
-def preferred_shift(factory: ConstraintFactory):
+# ── Soft constraints ──────────────────────────────────────────────────────────
+
+def _preferred_shift(factory: ConstraintFactory):
     """Reward assigning employees to their preferred time windows."""
     return (
         factory.for_each(ShiftAssignment)
@@ -189,7 +183,7 @@ def preferred_shift(factory: ConstraintFactory):
     )
 
 
-def unpreferred_shift(factory: ConstraintFactory):
+def _unpreferred_shift(factory: ConstraintFactory):
     """Penalise assigning employees to their unpreferred time windows."""
     return (
         factory.for_each(ShiftAssignment)
@@ -203,8 +197,8 @@ def unpreferred_shift(factory: ConstraintFactory):
     )
 
 
-def spread_workload(factory: ConstraintFactory):
-    """Prefer distributing hours evenly — reward all filled assignments."""
+def _spread_workload(factory: ConstraintFactory):
+    """Reward all filled assignments — general pressure to assign all shifts."""
     return (
         factory.for_each(ShiftAssignment)
         .filter(lambda a: a.employee is not None)
@@ -213,14 +207,13 @@ def spread_workload(factory: ConstraintFactory):
     )
 
 
-def weekly_overtime(factory: ConstraintFactory):
-    """Soft-penalise each hour an employee works over the per-country weekly maximum.
+def _weekly_overtime(factory: ConstraintFactory, limit: int):
+    """Soft-penalise each hour an employee works over the weekly maximum.
 
     Uses pre-computed iso_week and duration_mins on Shift (flat attribute access —
-    no arithmetic in the JVM transpiler).  Penalises proportionally: 1 soft point
-    per hour over the limit, per employee per week.
+    no arithmetic inside the JVM transpiler).  Penalises proportionally: 1 soft
+    point per hour over the limit, per employee per week.
     """
-    limit = _active_config["max_weekly_hours"] * 60
     return (
         factory.for_each(ShiftAssignment)
         .filter(lambda a: a.employee is not None and a.shift is not None)
@@ -234,18 +227,12 @@ def weekly_overtime(factory: ConstraintFactory):
     )
 
 
-def balance_workload(factory: ConstraintFactory):
-    """Soft-penalise hours worked beyond the per-employee weekly fair share (+20% buffer).
+def _balance_workload(factory: ConstraintFactory, threshold: int):
+    """Soft-penalise hours above the balance threshold (80 % of weekly max).
 
-    The target is set by scheduler.py before each solve:
-        total_shift_minutes / num_employees / num_weeks
-
-    A 20 % buffer avoids penalising unavoidable minor imbalances caused by skill
-    constraints.  If no target has been set the constraint is effectively disabled.
+    Nudges the solver to distribute work before anyone approaches the hard
+    legal limit, reducing the chance that one employee ends up with all shifts.
     """
-    target = _fairness_config["target_weekly_mins"]
-    # 20 % headroom; fall back to weekly max so constraint never mis-fires
-    threshold = int(target * 1.2) if target > 0 else _active_config["max_weekly_hours"] * 60
     return (
         factory.for_each(ShiftAssignment)
         .filter(lambda a: a.employee is not None and a.shift is not None)

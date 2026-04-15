@@ -1,27 +1,80 @@
-"""Timefold solver service — runs in a thread pool executor.
+"""Timefold solver service — backed by SolverManager for concurrent multi-user solves.
 
-Availability / preference pre-computation runs in pure Python here, BEFORE
-the domain objects are handed to Timefold.  This keeps all complex logic
-(date matching, time-overlap arithmetic) out of the JVM bytecode transpiler.
+Architecture
+------------
+One SolverManager is created per (country, timeout) combination and cached for
+the lifetime of the process.  This means:
+
+  - Country-specific constraint config (min rest, weekly max hours) is baked into
+    the manager at creation time — there is no shared mutable state between
+    concurrent solves.  Races between users from different countries are impossible.
+
+  - The manager maintains a bounded thread pool (SOLVER_PARALLEL_COUNT in settings).
+    With the default of 1, solves are queued sequentially — safe on single-core or
+    low-RAM hosts and correct regardless of concurrency.  Increase to 2-4 when you
+    have spare CPU cores dedicated to the solver.
+
+  - solve_async() submits the job to the manager and then awaits
+    job.get_final_best_solution() in a thread-pool executor so the FastAPI event
+    loop is never blocked.
+
+Scaling beyond a single host
+-----------------------------
+When you outgrow one server (e.g. 10+ concurrent users hitting Solve at the same
+time), extract the solver into a separate worker container:
+
+  web  ──POST /solve──►  API container  (stores run_id, status=processing)
+                              │
+                        enqueues job
+                              │
+                              ▼
+                       Redis / RQ queue
+                              │
+                              ▼
+                       Solver worker(s)  ←── scale horizontally
+                       (each runs one SolverManager with parallel_solver_count=1)
+                              │
+                       writes result to DB
+                              │
+                       API polls DB ──► client GET /schedules/:id
+
+This keeps the JVM completely out of the web-serving path and lets you scale
+solver workers independently.
 """
 
 import asyncio
+import threading
 from datetime import date
 
-from timefold.solver import SolverFactory
+from timefold.solver import SolverManager
 from timefold.solver.config import (
     Duration,
-    SolverConfig,
     ScoreDirectorFactoryConfig,
+    SolverConfig,
+    SolverManagerConfig,
     TerminationConfig,
 )
 
 from app.core.config import settings
 from timefold_model.domain import Employee, ScheduleSolution, Shift, ShiftAssignment
-from timefold_model.constraints import define_constraints, set_country_config, set_fairness_config
+from timefold_model.constraints import build_constraint_provider
 
 
-# ── Time helpers (pure Python, never transpiled) ─────────────────────────────
+# ── Country labour-law configs ────────────────────────────────────────────────
+
+_COUNTRY_CONFIGS: dict[str, dict] = {
+    "IE": {"min_rest_hours": 11, "max_weekly_hours": 48},
+    "GB": {"min_rest_hours": 11, "max_weekly_hours": 48},
+    "ES": {"min_rest_hours": 12, "max_weekly_hours": 40},
+}
+_DEFAULT_CONFIG = {"min_rest_hours": 11, "max_weekly_hours": 48}
+
+
+def _country_cfg(country: str | None) -> dict:
+    return dict(_COUNTRY_CONFIGS.get(country or "", _DEFAULT_CONFIG))
+
+
+# ── Time helpers (pure Python, never transpiled) ──────────────────────────────
 
 def _hhmm_to_mins(s: str) -> int:
     """'08:00' → 480"""
@@ -41,57 +94,34 @@ _WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 
 def _span_covers_shift(span: dict, shift_date_str: str, shift_weekday: str,
                         shift_start: int, shift_end: int) -> bool:
-    """Return True if the span covers the given shift.
-
-    Runs in pure Python (scheduler.py), NOT inside Timefold's JVM transpiler.
-    """
     day = str(span.get("day") or "")
-
     if "-" in day:
-        # Specific date, e.g. "2026-03-01"
         if shift_date_str != day:
             return False
     else:
-        # Weekday name, e.g. "Monday"
         if shift_weekday != day:
             return False
 
     span_start_str = span.get("start")
-    span_end_str = span.get("end")
-
-    # All-day rule
+    span_end_str   = span.get("end")
     if not span_start_str or not span_end_str:
         return True
 
     span_start = _hhmm_to_mins(span_start_str)
-    span_end = _hhmm_to_mins(span_end_str)
-
-    # Intervals overlap when neither ends before the other starts
+    span_end   = _hhmm_to_mins(span_end_str)
     return not (shift_end <= span_start or span_end <= shift_start)
 
 
 def _precompute_shift_id_sets(employees_data: list[dict], shifts_data: list[dict]) -> dict:
-    """Return a dict keyed by employee id with pre-computed shift ID sets.
-
-    {
-        "alice_johnson": {
-            "unavailable": ["2026-03-01_08:00_slot0", ...],
-            "preferred":   [...],
-            "unpreferred": [...],
-        },
-        ...
-    }
-    """
-    # Build a flat list of shift descriptors for fast iteration
     shift_descriptors = []
     for s in shifts_data:
         d = date.fromisoformat(s["date"])
         shift_descriptors.append({
-            "id":           s["id"],
-            "date_str":     s["date"],
-            "weekday":      _WEEKDAY_NAMES[d.weekday()],
-            "start_mins":   _hhmm_to_mins(s["start_time"]),
-            "end_mins":     _hhmm_to_mins(s["end_time"]),
+            "id":         s["id"],
+            "date_str":   s["date"],
+            "weekday":    _WEEKDAY_NAMES[d.weekday()],
+            "start_mins": _hhmm_to_mins(s["start_time"]),
+            "end_mins":   _hhmm_to_mins(s["end_time"]),
         })
 
     result: dict[str, dict] = {}
@@ -102,22 +132,20 @@ def _precompute_shift_id_sets(employees_data: list[dict], shifts_data: list[dict
         unpreferred: list[str] = []
 
         for sd in shift_descriptors:
-            sid        = sd["id"]
-            date_str   = sd["date_str"]
-            weekday    = sd["weekday"]
-            start      = sd["start_mins"]
-            end        = sd["end_mins"]
+            sid      = sd["id"]
+            date_str = sd["date_str"]
+            weekday  = sd["weekday"]
+            start    = sd["start_mins"]
+            end      = sd["end_mins"]
 
             for span in e.get("unavailable_spans", []):
                 if _span_covers_shift(span, date_str, weekday, start, end):
                     unavailable.append(sid)
                     break
-
             for span in e.get("preferred_spans", []):
                 if _span_covers_shift(span, date_str, weekday, start, end):
                     preferred.append(sid)
                     break
-
             for span in e.get("unpreferred_spans", []):
                 if _span_covers_shift(span, date_str, weekday, start, end):
                     unpreferred.append(sid)
@@ -128,72 +156,81 @@ def _precompute_shift_id_sets(employees_data: list[dict], shifts_data: list[dict
             "preferred":   preferred,
             "unpreferred": unpreferred,
         }
-
     return result
 
 
-# ── Solver ────────────────────────────────────────────────────────────────────
+# ── SolverManager cache ───────────────────────────────────────────────────────
 
 # Hard ceiling — no solve ever runs longer than this
 MAX_SOLVER_SECONDS = 300  # 5 minutes
-
-# Stop early if no improvement is found within this window
+# Stop early if no improvement for this long
 UNIMPROVED_SECONDS = 30
 
-
-def _build_solver(timeout_seconds: int):
-    effective_timeout = min(timeout_seconds, MAX_SOLVER_SECONDS)
-    config = SolverConfig(
-        solution_class=ScheduleSolution,
-        entity_class_list=[ShiftAssignment],
-        score_director_factory_config=ScoreDirectorFactoryConfig(
-            constraint_provider_function=define_constraints
-        ),
-        termination_config=TerminationConfig(
-            # Overall ceiling — solver never runs longer than effective_timeout
-            spent_limit=Duration(seconds=effective_timeout),
-            # Early-exit — stop as soon as score hasn't improved for 30 s
-            unimproved_spent_limit=Duration(seconds=UNIMPROVED_SECONDS),
-        ),
-    )
-    return SolverFactory.create(config).build_solver()
+# Cache keyed by (country_key, timeout_seconds) so each distinct configuration
+# gets its own manager with constraint config baked in.
+_managers: dict[tuple, SolverManager] = {}
+_managers_lock = threading.Lock()
 
 
-def _solve_sync(
+def _get_solver_manager(country: str | None, timeout_seconds: int) -> SolverManager:
+    """Return (and lazily create) the SolverManager for this country + timeout."""
+    key = (country or "", timeout_seconds)
+    if key in _managers:
+        return _managers[key]
+
+    with _managers_lock:
+        # Double-checked: another thread may have created it while we waited
+        if key in _managers:
+            return _managers[key]
+
+        cfg = _country_cfg(country)
+        constraint_provider = build_constraint_provider(
+            min_rest_mins   = cfg["min_rest_hours"]   * 60,
+            max_weekly_mins = cfg["max_weekly_hours"] * 60,
+        )
+        solver_config = SolverConfig(
+            solution_class=ScheduleSolution,
+            entity_class_list=[ShiftAssignment],
+            score_director_factory_config=ScoreDirectorFactoryConfig(
+                constraint_provider_function=constraint_provider,
+            ),
+            termination_config=TerminationConfig(
+                spent_limit=Duration(seconds=timeout_seconds),
+                unimproved_spent_limit=Duration(seconds=UNIMPROVED_SECONDS),
+            ),
+        )
+        mgr_config = SolverManagerConfig(
+            parallel_solver_count=settings.SOLVER_PARALLEL_COUNT,
+        )
+        _managers[key] = SolverManager.create(solver_config, mgr_config)
+        return _managers[key]
+
+
+# ── Problem builder ───────────────────────────────────────────────────────────
+
+def _build_problem(
     employees_data: list[dict],
     shifts_data: list[dict],
-    country: str | None = None,
-    timeout_seconds: int | None = None,
-    previous_assignments: list[dict] | None = None,
-) -> dict:
-    # Apply the country's labour-law constraint config before building the solver
-    set_country_config(country)
+    previous_assignments: list[dict] | None,
+) -> tuple[ScheduleSolution, dict[str, float]]:
+    """Build the Timefold domain objects from raw dicts.
 
+    Returns (ScheduleSolution, emp_cost_map) where emp_cost_map is used to
+    attach cost info to result assignments after solving.
+    """
     # Pre-compute per-shift derived values (pure Python, never seen by JVM)
-    # iso_week: "YYYYWww" key used for weekly group_by in constraints
-    # duration_mins: overnight-aware shift length used by sum collector
     shift_meta: dict[str, dict] = {}
-    iso_weeks_seen: set[tuple] = set()
     for s in shifts_data:
-        d = date.fromisoformat(s["date"])
-        ic = d.isocalendar()
-        iso_week_str = f"{ic[0]}W{ic[1]:02d}"
-        iso_weeks_seen.add((ic[0], ic[1]))
-        start = _hhmm_to_mins(s["start_time"])
-        end   = _hhmm_to_mins(s["end_time"])
-        dur   = end - start
+        d   = date.fromisoformat(s["date"])
+        ic  = d.isocalendar()
+        iso = f"{ic[0]}W{ic[1]:02d}"
+        st  = _hhmm_to_mins(s["start_time"])
+        en  = _hhmm_to_mins(s["end_time"])
+        dur = en - st
         if dur <= 0:
             dur += 1440
-        shift_meta[s["id"]] = {"iso_week": iso_week_str, "duration_mins": dur}
+        shift_meta[s["id"]] = {"iso_week": iso, "duration_mins": dur}
 
-    # Set fairness target: total shift minutes / employees / weeks
-    total_shift_mins = sum(m["duration_mins"] for m in shift_meta.values())
-    num_weeks = max(len(iso_weeks_seen), 1)
-    num_emps  = max(len(employees_data), 1)
-    target_weekly_mins = total_shift_mins // num_emps // num_weeks
-    set_fairness_config(target_weekly_mins)
-
-    # Pre-compute availability in pure Python — never seen by Timefold's JVM transpiler
     avail_sets = _precompute_shift_id_sets(employees_data, shifts_data)
 
     employees = [
@@ -210,11 +247,9 @@ def _solve_sync(
         for e in employees_data
     ]
 
-    # Build lookups
     emp_cost_map: dict[str, float] = {e.id: e.cost_per_hour for e in employees}
-    emp_by_id: dict[str, Employee] = {e.id: e for e in employees}
+    emp_by_id:   dict[str, Employee] = {e.id: e for e in employees}
 
-    # Warm-start map: shift_id → employee_id from the previous solve result
     warm_start: dict[str, str] = {}
     if previous_assignments:
         for pa in previous_assignments:
@@ -223,9 +258,9 @@ def _solve_sync(
             if sid and eid:
                 warm_start[sid] = eid
 
-    assignments = []
+    shift_assignments = []
     for s in shifts_data:
-        meta = shift_meta[s["id"]]
+        meta  = shift_meta[s["id"]]
         shift = Shift(
             id=s["id"],
             date=date.fromisoformat(s["date"]),
@@ -237,18 +272,16 @@ def _solve_sync(
             duration_mins=meta["duration_mins"],
         )
         sa = ShiftAssignment(id=s["id"], shift=shift)
-        # Seed from previous solution so the solver improves rather than restarts
-        prev_emp_id = warm_start.get(s["id"])
-        if prev_emp_id and prev_emp_id in emp_by_id:
-            sa.employee = emp_by_id[prev_emp_id]
-        assignments.append(sa)
+        prev_eid = warm_start.get(s["id"])
+        if prev_eid and prev_eid in emp_by_id:
+            sa.employee = emp_by_id[prev_eid]
+        shift_assignments.append(sa)
 
-    base_timeout = timeout_seconds if timeout_seconds and timeout_seconds > 0 else settings.SOLVER_TIMEOUT_SECONDS
-    effective_timeout = min(base_timeout, MAX_SOLVER_SECONDS)
-    problem = ScheduleSolution(employees=employees, shift_assignments=assignments)
-    solver = _build_solver(effective_timeout)
-    solution: ScheduleSolution = solver.solve(problem)
+    problem = ScheduleSolution(employees=employees, shift_assignments=shift_assignments)
+    return problem, emp_cost_map
 
+
+def _solution_to_dict(solution: ScheduleSolution, emp_cost_map: dict[str, float]) -> dict:
     result_assignments = []
     for a in solution.shift_assignments:
         duration_h = a.shift.duration_hours() if a.shift else 0.0
@@ -262,28 +295,46 @@ def _solve_sync(
             "slot_index":      a.shift.slot_index if a.shift else None,
             "employee_id":     a.employee.id if a.employee else None,
             "employee_name":   a.employee.name if a.employee else None,
-            # Cost passthrough — not used by the solver, exposed for frontend stats
             "cost_per_hour":   cost_per_h,
             "shift_cost":      round(cost_per_h * duration_h, 2),
         })
-
     score_str = str(solution.score) if solution.score else "unknown"
     return {"assignments": result_assignments, "score": score_str}
 
 
+# ── Public solve entry point ──────────────────────────────────────────────────
+
 async def solve_async(
+    run_id: str,
     employees_data: list[dict],
     shifts_data: list[dict],
     country: str | None = None,
     timeout_seconds: int | None = None,
     previous_assignments: list[dict] | None = None,
 ) -> dict:
-    """Run the solver in a thread-pool so it doesn't block the event loop."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, _solve_sync, employees_data, shifts_data, country, timeout_seconds, previous_assignments
-    )
+    """Submit a solve job to the SolverManager and return when it completes.
 
+    Non-blocking: the job is queued by the manager.  If SOLVER_PARALLEL_COUNT=1
+    (default) concurrent jobs are serialised automatically.  The event loop is
+    freed while waiting via run_in_executor.
+    """
+    base = timeout_seconds if timeout_seconds and timeout_seconds > 0 else settings.SOLVER_TIMEOUT_SECONDS
+    effective_timeout = min(base, MAX_SOLVER_SECONDS)
+
+    manager = _get_solver_manager(country, effective_timeout)
+    problem, emp_cost_map = _build_problem(employees_data, shifts_data, previous_assignments)
+
+    # Submits the job (non-blocking) — manager queues it according to parallel_solver_count
+    job = manager.solve(run_id, problem)
+
+    # Block the thread (not the event loop) until the job finishes
+    loop = asyncio.get_event_loop()
+    solution = await loop.run_in_executor(None, job.get_final_best_solution)
+
+    return _solution_to_dict(solution, emp_cost_map)
+
+
+# ── Replacement finder ────────────────────────────────────────────────────────
 
 def find_substitutes(
     employees_data: list[dict],
@@ -300,29 +351,26 @@ def find_substitutes(
       -6  employee is marked unavailable
       -10 employee already has an overlapping shift that day
 
+    The currently assigned employee is excluded from results.
     Runs in pure Python — no JVM/Timefold involved.
     """
-    from datetime import date as _date  # noqa: PLC0415
-
     target = next((s for s in shifts_data if s["id"] == shift_id), None)
     if not target:
         return []
 
     shift_date_str = target["date"]
-    d = _date.fromisoformat(shift_date_str)
+    d = date.fromisoformat(shift_date_str)
     shift_weekday = _WEEKDAY_NAMES[d.weekday()]
     shift_start = _hhmm_to_mins(target["start_time"])
     shift_end   = _hhmm_to_mins(target["end_time"])
     if shift_end <= shift_start:
-        shift_end += 1440  # overnight
+        shift_end += 1440
 
     required_skills = set(target.get("required_skills") or [])
 
-    # Find the employee currently assigned to this shift (they are excluded from results)
     current_assignment = next((a for a in assignments_data if a.get("shift_id") == shift_id), None)
     current_employee_id = current_assignment.get("employee_id") if current_assignment else None
 
-    # Per-employee list of same-day shifts they're already assigned to
     shift_by_id = {s["id"]: s for s in shifts_data}
     emp_day_shifts: dict[str, list[dict]] = {}
     for a in assignments_data:
@@ -336,14 +384,13 @@ def find_substitutes(
 
     results: list[dict] = []
     for emp in employees_data:
-        # Exclude the employee who is currently assigned — they need a replacement, not themselves
         if emp["id"] == current_employee_id:
             continue
         emp_id     = emp["id"]
         emp_skills = set(emp.get("skills") or [])
         avail      = avail_sets.get(emp_id, {})
 
-        skills_ok     = not required_skills or required_skills.issubset(emp_skills)
+        skills_ok      = not required_skills or required_skills.issubset(emp_skills)
         missing_skills = sorted(required_skills - emp_skills)
 
         overlaps = False
@@ -361,23 +408,18 @@ def find_substitutes(
         is_unpreferred = shift_id in avail.get("unpreferred", [])
 
         score = 0
-        if skills_ok:     score += 4
-        if overlaps:      score -= 10
+        if skills_ok:      score += 4
+        if overlaps:       score -= 10
         if is_unavailable: score -= 6
-        if is_preferred:  score += 2
+        if is_preferred:   score += 2
         if is_unpreferred: score -= 1
 
         reasons: list[str] = []
-        if not skills_ok:
-            reasons.append(f"Missing: {', '.join(missing_skills)}")
-        if overlaps:
-            reasons.append("Already scheduled this time")
-        if is_unavailable:
-            reasons.append("Marked unavailable")
-        if is_preferred:
-            reasons.append("Preferred time")
-        elif is_unpreferred:
-            reasons.append("Unpreferred time")
+        if not skills_ok:      reasons.append(f"Missing: {', '.join(missing_skills)}")
+        if overlaps:           reasons.append("Already scheduled this time")
+        if is_unavailable:     reasons.append("Marked unavailable")
+        if is_preferred:       reasons.append("Preferred time")
+        elif is_unpreferred:   reasons.append("Unpreferred time")
 
         results.append({
             "employee_id":    emp_id,
@@ -395,46 +437,41 @@ def find_substitutes(
     return results
 
 
+# ── Pure-Python constraint validation ─────────────────────────────────────────
+
 def check_constraints(
     employees_data: list[dict],
     shifts_data: list[dict],
     assignments_data: list[dict],
     country: str | None = None,
 ) -> list[dict]:
-    """Pure-Python mirror of the Timefold hard constraints.
+    """Mirror of the Timefold hard constraints in pure Python (instant, no JVM).
 
     Returns a list of violation dicts:
-      {"shift_id": str, "rule": str, "message": str, "severity": "hard"}
-
-    Runs instantly — no JVM/Timefold involved.
+      {"shift_id": str, "rule": str, "message": str, "severity": "hard"|"soft"}
     """
-    from timefold_model.constraints import set_country_config, _active_config  # noqa: PLC0415
+    cfg           = _country_cfg(country)
+    min_rest_mins = cfg["min_rest_hours"]   * 60
+    max_weekly_h  = cfg["max_weekly_hours"]
 
-    set_country_config(country)
-    min_rest_mins = _active_config["min_rest_hours"] * 60
-
-    emp_by_id: dict[str, dict] = {e["id"]: e for e in employees_data}
+    emp_by_id:   dict[str, dict] = {e["id"]: e for e in employees_data}
     shift_by_id: dict[str, dict] = {s["id"]: s for s in shifts_data}
 
-    # Pre-compute availability in pure Python
     avail_sets = _precompute_shift_id_sets(employees_data, shifts_data)
 
     violations: list[dict] = []
-
-    # Group assigned shifts by employee for overlap / rest checks
     by_employee: dict[str, list[dict]] = {}
 
     for a in assignments_data:
         shift_id = a.get("shift_id")
-        emp_id = a.get("employee_id")
-        shift = shift_by_id.get(shift_id) if shift_id else None
+        emp_id   = a.get("employee_id")
+        shift    = shift_by_id.get(shift_id) if shift_id else None
 
-        # ── Unassigned shift ─────────────────────────────────────────────────
         if not emp_id:
             violations.append({
                 "shift_id": shift_id,
-                "rule": "Unassigned shift",
-                "message": "This shift slot has no assigned employee.",
+                "rule":     "Unassigned shift",
+                "message":  "This shift slot has no assigned employee.",
                 "severity": "hard",
             })
             continue
@@ -445,33 +482,30 @@ def check_constraints(
 
         emp_avail = avail_sets.get(emp_id, {})
 
-        # ── Missing required skills ──────────────────────────────────────────
-        required = set(shift.get("required_skills") or [])
+        required   = set(shift.get("required_skills") or [])
         emp_skills = set(emp.get("skills") or [])
         if required and not required.issubset(emp_skills):
             missing = sorted(required - emp_skills)
             violations.append({
                 "shift_id": shift_id,
-                "rule": "Missing required skills",
-                "message": f"{emp['name']} is missing: {', '.join(missing)}",
+                "rule":     "Missing required skills",
+                "message":  f"{emp['name']} is missing: {', '.join(missing)}",
                 "severity": "hard",
             })
 
-        # ── Employee unavailable ────────────────────────────────────────────
         if shift_id in emp_avail.get("unavailable", []):
             violations.append({
                 "shift_id": shift_id,
-                "rule": "Employee unavailable",
-                "message": f"{emp['name']} is marked unavailable for this shift.",
+                "rule":     "Employee unavailable",
+                "message":  f"{emp['name']} is marked unavailable for this shift.",
                 "severity": "hard",
             })
 
-        # Collect for pair-wise checks
         by_employee.setdefault(emp_id, []).append(
             {"shift_id": shift_id, "shift": shift, "emp": emp}
         )
 
-    # ── Pair-wise: overlapping shifts + minimum rest ─────────────────────────
+    # Pair-wise: overlapping shifts + minimum rest
     for emp_id, emp_list in by_employee.items():
         for i in range(len(emp_list)):
             for j in range(i + 1, len(emp_list)):
@@ -493,21 +527,19 @@ def check_constraints(
                 abs_sb_s = sb_ord + sb_start
                 abs_sb_e = sb_ord + sb_end
 
-                # Handle overnight shifts
                 if abs_sa_e <= abs_sa_s:
                     abs_sa_e += 1440
                 if abs_sb_e <= abs_sb_s:
                     abs_sb_e += 1440
 
-                overlaps = not (abs_sa_e <= abs_sb_s or abs_sb_e <= abs_sa_s)
                 emp_name = ea["emp"]["name"]
 
-                if overlaps:
+                if not (abs_sa_e <= abs_sb_s or abs_sb_e <= abs_sa_s):
                     for sid in (ea["shift_id"], eb["shift_id"]):
                         violations.append({
                             "shift_id": sid,
-                            "rule": "Overlapping shifts",
-                            "message": f"{emp_name} is scheduled for two overlapping shifts.",
+                            "rule":     "Overlapping shifts",
+                            "message":  f"{emp_name} is scheduled for two overlapping shifts.",
                             "severity": "hard",
                         })
                 else:
@@ -520,54 +552,45 @@ def check_constraints(
                         for sid in (ea["shift_id"], eb["shift_id"]):
                             violations.append({
                                 "shift_id": sid,
-                                "rule": "Insufficient rest between shifts",
-                                "message": (
+                                "rule":     "Insufficient rest between shifts",
+                                "message":  (
                                     f"{emp_name} has only {gap / 60:.1f}h rest "
                                     f"(minimum {min_rest_mins // 60}h required)."
                                 ),
                                 "severity": "hard",
                             })
 
-    # ── Weekly overtime (soft) ───────────────────────────────────────────────
-    max_weekly_h = _active_config.get("max_weekly_hours", 48)
+    # Weekly overtime (soft warning)
     emp_week_hours: dict[tuple, float] = {}
-
     for a in assignments_data:
-        eid = a.get("employee_id")
-        if not eid:
-            continue
+        eid   = a.get("employee_id")
         shift = shift_by_id.get(a.get("shift_id", ""))
-        if not shift:
+        if not eid or not shift:
             continue
-        d = date.fromisoformat(shift["date"])
-        ic = d.isocalendar()
+        ic       = date.fromisoformat(shift["date"]).isocalendar()
         week_key = (eid, int(ic[0]), int(ic[1]))
-        s_mins = _hhmm_to_mins(shift["start_time"])
-        e_mins = _hhmm_to_mins(shift["end_time"])
-        dur = e_mins - s_mins
+        s_m = _hhmm_to_mins(shift["start_time"])
+        e_m = _hhmm_to_mins(shift["end_time"])
+        dur = e_m - s_m
         if dur <= 0:
             dur += 1440
         emp_week_hours[week_key] = emp_week_hours.get(week_key, 0.0) + dur / 60
 
-    # Emit one soft violation per shift that belongs to an overtime week
     for a in assignments_data:
-        eid = a.get("employee_id")
-        if not eid:
-            continue
+        eid   = a.get("employee_id")
         shift = shift_by_id.get(a.get("shift_id", ""))
-        if not shift:
+        if not eid or not shift:
             continue
-        d = date.fromisoformat(shift["date"])
-        ic = d.isocalendar()
+        ic       = date.fromisoformat(shift["date"]).isocalendar()
         week_key = (eid, int(ic[0]), int(ic[1]))
-        total_h = emp_week_hours.get(week_key, 0.0)
+        total_h  = emp_week_hours.get(week_key, 0.0)
         if total_h > max_weekly_h:
-            emp = emp_by_id.get(eid)
+            emp      = emp_by_id.get(eid)
             emp_name = emp["name"] if emp else eid
             violations.append({
                 "shift_id": a["shift_id"],
-                "rule": "Weekly overtime",
-                "message": (
+                "rule":     "Weekly overtime",
+                "message":  (
                     f"{emp_name} is scheduled {total_h:.1f}h in week {int(ic[1])} "
                     f"(max {max_weekly_h}h)."
                 ),

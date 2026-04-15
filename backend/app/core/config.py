@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     STRIPE_CANCEL_URL: str = "https://scheduler-lite.eascadesk.ie/pricing?payment=cancelled"
 
     SOLVER_TIMEOUT_SECONDS: int = 30
+    # Max concurrent solves across all users.
+    # 1 = queue solves sequentially (safe on single-core / low-RAM hosts).
+    # Increase to 2-4 when you have spare CPU cores.
+    SOLVER_PARALLEL_COUNT: int = 1
 
     ADMIN_EMAIL: str = ""
 

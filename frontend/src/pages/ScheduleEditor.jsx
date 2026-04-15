@@ -60,7 +60,6 @@ function SolvingBanner({ startedAt }) {
       <div className="flex items-center gap-2.5">
         <Spinner size="sm" className="text-teal-600" />
         <span className="text-sm font-medium text-teal-800">Optimising schedule…</span>
-        <span className="text-xs text-teal-600 tabular-nums">{elapsed}s elapsed</span>
       </div>
       <span className="text-xs text-teal-600 hidden sm:block">
         You can navigate away — the result will be ready when you return.

@@ -28,6 +28,7 @@ async def _background_solve(
     async with AsyncSessionLocal() as db:
         try:
             result_data = await solve_async(
+                run_id,
                 employees_data,
                 shifts_data,
                 country=country,
