@@ -46,15 +46,7 @@ function SolveDotsCounter({ used, limit }) {
 }
 
 // ── Solving progress banner ───────────────────────────────────────────────────
-function SolvingBanner({ startedAt }) {
-  const [elapsed, setElapsed] = useState(0)
-
-  useEffect(() => {
-    const origin = startedAt ? new Date(startedAt).getTime() : Date.now()
-    const t = setInterval(() => setElapsed(Math.floor((Date.now() - origin) / 1000)), 1000)
-    return () => clearInterval(t)
-  }, [startedAt])
-
+function SolvingBanner() {
   return (
     <div className="relative border-b border-teal-200 bg-teal-50 px-4 py-2.5 flex items-center justify-between gap-4 overflow-hidden">
       <div className="flex items-center gap-2.5">
@@ -493,7 +485,7 @@ export default function ScheduleEditor() {
         </div>
 
         {/* Solving banner — shown above the Gantt while optimising */}
-        {solving && <SolvingBanner startedAt={run?.solving_started_at} />}
+        {solving && <SolvingBanner />}
 
         {/* Gantt — always rendered when data exists; read-only while solving */}
         {employees.length > 0 && shifts.length > 0 ? (

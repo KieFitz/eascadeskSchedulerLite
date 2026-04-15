@@ -28,7 +28,10 @@ async def get_usage(
     count_result = await db.execute(
         select(func.count(ScheduleRun.id)).where(
             ScheduleRun.user_id == current_user.id,
-            ScheduleRun.status == "completed",
+            # Use result_data IS NOT NULL rather than status == "completed" so
+            # that re-solving an existing run (status briefly → "processing")
+            # does not cause the counter to visually reset to 0.
+            ScheduleRun.result_data.isnot(None),
             func.extract("year",  ScheduleRun.created_at) == today.year,
             func.extract("month", ScheduleRun.created_at) == today.month,
         )
