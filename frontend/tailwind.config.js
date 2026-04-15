@@ -25,6 +25,15 @@ export default {
         card: '0 18px 50px rgba(17, 18, 35, 0.10)',
         soft: '0 4px 20px rgba(17, 18, 35, 0.08)',
       },
+      keyframes: {
+        progress: {
+          '0%':   { transform: 'translateX(-200%)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
+      },
+      animation: {
+        progress: 'progress 1.6s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

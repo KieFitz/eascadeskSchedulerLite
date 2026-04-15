@@ -45,8 +45,8 @@ function SolveDotsCounter({ used, limit }) {
   )
 }
 
-// ── Solving progress overlay ──────────────────────────────────────────────────
-function SolvingOverlay({ startedAt }) {
+// ── Solving progress banner ───────────────────────────────────────────────────
+function SolvingBanner({ startedAt }) {
   const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
@@ -56,11 +56,19 @@ function SolvingOverlay({ startedAt }) {
   }, [startedAt])
 
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <Spinner size="lg" />
-      <p className="text-sm font-medium text-dark">Optimising your schedule…</p>
-      <p className="text-xs text-muted">{elapsed}s elapsed · up to 5 min</p>
-      <p className="text-xs text-muted/70">You can navigate away — the result will be ready when you return.</p>
+    <div className="relative border-b border-teal-200 bg-teal-50 px-4 py-2.5 flex items-center justify-between gap-4 overflow-hidden">
+      <div className="flex items-center gap-2.5">
+        <Spinner size="sm" className="text-teal-600" />
+        <span className="text-sm font-medium text-teal-800">Optimising schedule…</span>
+        <span className="text-xs text-teal-600 tabular-nums">{elapsed}s elapsed</span>
+      </div>
+      <span className="text-xs text-teal-600 hidden sm:block">
+        You can navigate away — the result will be ready when you return.
+      </span>
+      {/* Indeterminate progress bar */}
+      <div className="absolute bottom-0 left-0 h-0.5 w-full bg-teal-100" aria-hidden>
+        <div className="h-full w-1/3 bg-teal-400 animate-progress" />
+      </div>
     </div>
   )
 }
@@ -103,10 +111,15 @@ export default function ScheduleEditor() {
   const [violations,      setViolations]      = useState({})
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false)
 
-  const violationCount = useMemo(
-    () => Object.values(violations).reduce((n, v) => n + v.length, 0),
+  const hardViolationCount = useMemo(
+    () => Object.values(violations).reduce((n, vs) => n + vs.filter((v) => v.severity === 'hard').length, 0),
     [violations]
   )
+  const softViolationCount = useMemo(
+    () => Object.values(violations).reduce((n, vs) => n + vs.filter((v) => v.severity !== 'hard').length, 0),
+    [violations]
+  )
+  const violationCount = hardViolationCount + softViolationCount
 
   // ── Polling ───────────────────────────────────────────────────────────────
   const pollingRef = useRef(null)
@@ -293,9 +306,17 @@ export default function ScheduleEditor() {
         map[v.shift_id].push(v)
       }
       setViolations(map)
-      const hardCount = (result.violations ?? []).filter((v) => v.severity === 'hard').length
-      if (hardCount === 0) toast.success('No hard constraint violations found.')
-      else toast.error(`${hardCount} constraint violation${hardCount > 1 ? 's' : ''} found — highlighted in red.`)
+      const allViolations = result.violations ?? []
+      const hardCount = allViolations.filter((v) => v.severity === 'hard').length
+      const softCount = allViolations.filter((v) => v.severity !== 'hard').length
+      if (hardCount === 0 && softCount === 0) {
+        toast.success('No constraint violations found.')
+      } else if (hardCount === 0) {
+        toast.success(`No hard violations. ${softCount} overtime warning${softCount !== 1 ? 's' : ''} — highlighted in amber.`)
+      } else {
+        const msg = `${hardCount} hard violation${hardCount !== 1 ? 's' : ''}${softCount > 0 ? ` · ${softCount} warning${softCount !== 1 ? 's' : ''}` : ''} — see shifts highlighted in the schedule.`
+        toast.error(msg)
+      }
     } catch (err) {
       toast.error(err?.response?.data?.detail ?? 'Validation failed.')
     } finally {
@@ -416,17 +437,25 @@ export default function ScheduleEditor() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            {violationCount > 0 && (
+            {hardViolationCount > 0 && (
               <span className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
                 <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-                {violationCount} violation{violationCount !== 1 ? 's' : ''}
+                {hardViolationCount} violation{hardViolationCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            {softViolationCount > 0 && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                <ExclamationTriangleIcon className="h-3.5 w-3.5" />
+                {softViolationCount} warning{softViolationCount !== 1 ? 's' : ''}
               </span>
             )}
 
             <Button variant="secondary" size="sm" onClick={handleValidate} loading={validating} disabled={solving}>
-              {violationCount > 0
+              {hardViolationCount > 0
                 ? <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />
-                : <ShieldCheckIcon className="h-4 w-4" />}
+                : softViolationCount > 0
+                  ? <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />
+                  : <ShieldCheckIcon className="h-4 w-4" />}
               {validating ? 'Checking…' : 'Validate'}
             </Button>
 
@@ -464,10 +493,11 @@ export default function ScheduleEditor() {
           </div>
         </div>
 
-        {/* Gantt or solving overlay */}
-        {solving ? (
-          <SolvingOverlay startedAt={run?.solving_started_at} />
-        ) : employees.length > 0 && shifts.length > 0 ? (
+        {/* Solving banner — shown above the Gantt while optimising */}
+        {solving && <SolvingBanner startedAt={run?.solving_started_at} />}
+
+        {/* Gantt — always rendered when data exists; read-only while solving */}
+        {employees.length > 0 && shifts.length > 0 ? (
           <ScheduleGantt
             employees={employees}
             shifts={shifts}
@@ -477,7 +507,7 @@ export default function ScheduleEditor() {
             onDeleteShift={handleDeleteShift}
             onCreateShift={handleCreateShift}
             onFindSubstitutes={handleFindSubstitutes}
-            editable
+            editable={!solving}
           />
         ) : (
           <div className="flex items-center justify-center py-20 text-muted text-sm">

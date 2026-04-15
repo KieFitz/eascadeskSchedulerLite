@@ -104,17 +104,36 @@ export default function ShiftEditModal({
       </div>
 
       {/* Constraint violations */}
-      {hasViolations && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 space-y-1">
-          <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
-            <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-            Constraint violations
-          </p>
-          {shiftViolations.map((v, i) => (
-            <p key={i} className="text-xs text-red-600 pl-5">{v.message}</p>
-          ))}
-        </div>
-      )}
+      {hasViolations && (() => {
+        const hard = shiftViolations.filter((v) => v.severity === 'hard')
+        const soft = shiftViolations.filter((v) => v.severity !== 'hard')
+        return (
+          <>
+            {hard.length > 0 && (
+              <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 space-y-1">
+                <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
+                  <ExclamationTriangleIcon className="h-3.5 w-3.5" />
+                  Constraint violations
+                </p>
+                {hard.map((v, i) => (
+                  <p key={i} className="text-xs text-red-600 pl-5">{v.message}</p>
+                ))}
+              </div>
+            )}
+            {soft.length > 0 && (
+              <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-1">
+                <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                  <ExclamationTriangleIcon className="h-3.5 w-3.5" />
+                  Warnings
+                </p>
+                {soft.map((v, i) => (
+                  <p key={i} className="text-xs text-amber-700 pl-5">{v.message}</p>
+                ))}
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       {/* Employee selector */}
       <label className="block mb-1 text-xs font-semibold text-dark">Assign to</label>
