@@ -128,6 +128,11 @@ function toMins(t) {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
 }
+function shiftDurationHours(start, end) {
+  let mins = toMins(end) - toMins(start)
+  if (mins <= 0) mins += 1440
+  return mins / 60
+}
 function leftPct(t) {
   return Math.min(100, Math.max(0, ((Math.max(toMins(t), H_START * 60) - H_START * 60) / TOTAL_M) * 100))
 }
@@ -292,6 +297,7 @@ function ViewToggle({ view, onChange }) {
 // ════════════════════════════════════════════════════════════════════════════
 function EmployeeView({
   employees, visibleDates, assignMap, unassignedMap,
+  empTotalHoursMap,
   editable, violations,
   onReassign, onClickEditShift, onClickCreateShift,
   onTipShow, onTipHide,
@@ -355,9 +361,12 @@ function EmployeeView({
               {/* Employee label */}
               <div className="px-4 flex flex-col justify-center border-r border-gray-200 bg-white" style={{ height: ROW_H }}>
                 <p className="text-sm font-medium text-dark truncate">{emp.name}</p>
-                {emp.skills?.length > 0 && (
-                  <p className="text-[10px] text-muted truncate">{emp.skills.join(', ')}</p>
-                )}
+                <p className="text-[10px] text-muted truncate">
+                  {emp.skills?.length > 0 ? `${emp.skills.join(', ')} · ` : ''}
+                  <span className={(empTotalHoursMap[emp.id] ?? 0) > 48 ? 'text-amber-600 font-semibold' : ''}>
+                    {(empTotalHoursMap[emp.id] ?? 0).toFixed(1)}h
+                  </span>
+                </p>
               </div>
 
               {/* Date cells — all are drop targets for the same employee */}
@@ -644,6 +653,16 @@ export default function ScheduleGantt({
     return { assignMap: am, unassignedMap: um }
   }, [employeesArr, assignmentsArr])
 
+  // Total assigned hours per employee across all dates in the schedule
+  const empTotalHoursMap = useMemo(() => {
+    const map = {}
+    for (const a of assignmentsArr) {
+      if (!a.employee_id || !a.start_time || !a.end_time) continue
+      map[a.employee_id] = (map[a.employee_id] ?? 0) + shiftDurationHours(a.start_time, a.end_time)
+    }
+    return map
+  }, [assignmentsArr])
+
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   if (!employeesArr.length || !shiftsArr.length) return null
@@ -689,6 +708,7 @@ export default function ScheduleGantt({
           visibleDates={visibleDates}
           assignMap={assignMap}
           unassignedMap={unassignedMap}
+          empTotalHoursMap={empTotalHoursMap}
           editable={editable}
           violations={violations}
           onReassign={onReassign}
