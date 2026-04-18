@@ -120,6 +120,7 @@
           <th>Plan</th>
           <th>Status</th>
           <th>Joined</th>
+          <th>Last Login</th>
           <th style="text-align:right">Actions</th>
         </tr>
       </thead>
@@ -156,6 +157,7 @@
             </form>
           </td>
           <td class="date">{{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}</td>
+          <td class="date">{{ u.last_login_at.strftime('%d %b %Y %H:%M') if u.last_login_at else '—' }}</td>
           <td>
             <div class="actions">
               <button type="button" class="btn-sm btn-reset"
