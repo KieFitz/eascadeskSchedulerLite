@@ -111,7 +111,7 @@ function ShiftTooltip({ tip }) {
 }
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-const ROW_H   = 52
+const ROW_H   = 62
 const BAR_H   = 32
 const BAR_Y   = (ROW_H - BAR_H) / 2
 const EMP_W   = 164
@@ -361,11 +361,11 @@ function EmployeeView({
               {/* Employee label */}
               <div className="px-4 flex flex-col justify-center border-r border-gray-200 bg-white" style={{ height: ROW_H }}>
                 <p className="text-sm font-medium text-dark truncate">{emp.name}</p>
-                <p className="text-[10px] text-muted truncate">
-                  {emp.skills?.length > 0 ? `${emp.skills.join(', ')} · ` : ''}
-                  <span className={(empTotalHoursMap[emp.id] ?? 0) > 48 ? 'text-amber-600 font-semibold' : ''}>
-                    {(empTotalHoursMap[emp.id] ?? 0).toFixed(1)}h
-                  </span>
+                {emp.skills?.length > 0 && (
+                  <p className="text-[10px] text-muted truncate">{emp.skills.join(', ')}</p>
+                )}
+                <p className={`text-[10px] font-medium ${(empTotalHoursMap[emp.id] ?? 0) > 48 ? 'text-amber-600' : 'text-muted'}`}>
+                  {(empTotalHoursMap[emp.id] ?? 0).toFixed(1)}h assigned
                 </p>
               </div>
 
