@@ -11,6 +11,11 @@ from app.core.database import Base
 # Import models so Alembic detects them
 import app.models.user  # noqa: F401
 import app.models.schedule  # noqa: F401
+import app.models.employee  # noqa: F401
+import app.models.availability  # noqa: F401
+import app.models.shift_definition  # noqa: F401
+import app.models.shift_assignment  # noqa: F401
+import app.models.clock_event  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

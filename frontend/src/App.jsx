@@ -6,10 +6,19 @@ import ScheduleList from './pages/ScheduleList'
 import ScheduleEditor from './pages/ScheduleEditor'
 import Rules from './pages/Rules'
 import Pricing from './pages/Pricing'
+import Employees from './pages/Employees'
+import ClockEvents from './pages/ClockEvents'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
   return isAuthenticated ? children : <Navigate to="/login" replace />
+}
+
+function ProRoute({ children }) {
+  const { isAuthenticated, user } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (user?.plan !== 'paid') return <Navigate to="/pricing" replace />
+  return children
 }
 
 export default function App() {
@@ -35,6 +44,24 @@ export default function App() {
           <ProtectedRoute>
             <ScheduleEditor />
           </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/employees"
+        element={
+          <ProRoute>
+            <Employees />
+          </ProRoute>
+        }
+      />
+
+      <Route
+        path="/clock"
+        element={
+          <ProRoute>
+            <ClockEvents />
+          </ProRoute>
         }
       />
 

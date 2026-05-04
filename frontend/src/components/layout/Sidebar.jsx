@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import {
   CalendarDaysIcon,
+  ClockIcon,
   ScaleIcon,
   ArrowRightStartOnRectangleIcon,
   StarIcon,
   CreditCardIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
 import { useTranslations } from '../../i18n'
@@ -18,6 +20,10 @@ export default function Sidebar() {
 
   const navItems = [
     { to: '/schedules', label: t('navSchedule'), Icon: CalendarDaysIcon },
+    ...(isPro ? [
+      { to: '/employees',  label: 'Employees',   Icon: UserGroupIcon },
+      { to: '/clock',      label: 'Clock Events', Icon: ClockIcon },
+    ] : []),
     { to: '/rules', label: t('navRules'), Icon: ScaleIcon },
   ]
 

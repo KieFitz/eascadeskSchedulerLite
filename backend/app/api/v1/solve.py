@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.core.deps import get_current_user, get_db
+from app.models.availability import EmployeeAvailability
+from app.models.employee import Employee as EmployeeModel
 from app.models.schedule import ScheduleRun
 from app.models.user import User
 from app.schemas.schedule import SolveRequest
@@ -14,6 +16,83 @@ from app.services.plan_limits import FREE_MONTHLY_SOLVES
 from app.services.scheduler import solve_async
 
 router = APIRouter(tags=["solve"])
+
+_DOW_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _mins_to_hhmm(mins: int) -> str:
+    return f"{mins // 60:02d}:{mins % 60:02d}"
+
+
+async def _merge_db_availability(employees_data: list[dict], user_id: str, db: AsyncSession) -> list[dict]:
+    """For Pro users: fetch EmployeeAvailability rows from DB and inject them
+    as unavailable_spans / preferred_spans / unpreferred_spans into employees_data,
+    matching by employee name (since Excel-sourced employees have no DB id yet).
+    DB rules take precedence over any spans from the Excel upload.
+    """
+    # Build name → DB employee map for this user
+    emp_result = await db.execute(
+        select(EmployeeModel).where(EmployeeModel.user_id == user_id)
+    )
+    db_employees = {e.name.strip().lower(): e for e in emp_result.scalars().all()}
+
+    if not db_employees:
+        return employees_data
+
+    # Fetch all availability rules for these employees in one query
+    db_emp_ids = [e.id for e in db_employees.values()]
+    avail_result = await db.execute(
+        select(EmployeeAvailability).where(EmployeeAvailability.employee_id.in_(db_emp_ids))
+    )
+    avail_rows = avail_result.scalars().all()
+
+    # Group by employee_id
+    avail_by_emp: dict[str, list[EmployeeAvailability]] = {}
+    for row in avail_rows:
+        avail_by_emp.setdefault(row.employee_id, []).append(row)
+
+    merged = []
+    for emp in employees_data:
+        db_emp = db_employees.get(emp.get("name", "").strip().lower())
+        if not db_emp:
+            merged.append(emp)
+            continue
+
+        rules = avail_by_emp.get(db_emp.id, [])
+        if not rules:
+            merged.append(emp)
+            continue
+
+        unavailable_spans = []
+        preferred_spans = []
+        unpreferred_spans = []
+
+        for r in rules:
+            if r.specific_date is not None:
+                day_str = r.specific_date.isoformat()
+            else:
+                day_str = _DOW_NAMES[r.day_of_week]
+
+            span = {
+                "day":   day_str,
+                "start": _mins_to_hhmm(r.start_min),
+                "end":   _mins_to_hhmm(r.end_min),
+            }
+            if r.type == "unavailable":
+                unavailable_spans.append(span)
+            elif r.type == "preferred":
+                preferred_spans.append(span)
+            else:
+                unpreferred_spans.append(span)
+
+        merged.append({
+            **emp,
+            "unavailable_spans": unavailable_spans,
+            "preferred_spans":   preferred_spans,
+            "unpreferred_spans": unpreferred_spans,
+        })
+
+    return merged
 
 
 async def _background_solve(
@@ -23,10 +102,15 @@ async def _background_solve(
     country: str | None,
     timeout_seconds: int | None,
     previous_assignments: list | None,
+    user_id: str | None = None,
+    is_pro: bool = False,
 ) -> None:
     """Run the solver in the background and persist the result to its own DB session."""
     async with AsyncSessionLocal() as db:
         try:
+            if is_pro and user_id:
+                employees_data = await _merge_db_availability(employees_data, user_id, db)
+
             result_data = await solve_async(
                 run_id,
                 employees_data,
@@ -117,6 +201,8 @@ async def solve(
             country=current_user.country,
             timeout_seconds=body.timeout_seconds,
             previous_assignments=previous_assignments,
+            user_id=current_user.id,
+            is_pro=(current_user.plan == "paid"),
         )
     )
 

@@ -39,3 +39,12 @@ async def get_current_user(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+async def require_pro_plan(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.plan != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This feature requires the Pro plan",
+        )
+    return current_user
