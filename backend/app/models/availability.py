@@ -24,7 +24,14 @@ class EmployeeAvailability(Base):
         Enum("preferred", "unpreferred", "unavailable", name="availability_type_enum"),
         nullable=False,
     )
-    # Either day_of_week (0=Monday … 6=Sunday) for recurring rules, or specific_date for one-offs.
+    # recurrence='none' → use day_of_week or specific_date (exactly one must be set).
+    # recurrence in {weekdays, weekends, every_day} → day_of_week and specific_date are NULL.
+    recurrence: Mapped[str] = mapped_column(
+        Enum("none", "weekdays", "weekends", "every_day", name="availability_recurrence_enum"),
+        nullable=False,
+        default="none",
+        server_default="none",
+    )
     day_of_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
     specific_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Minutes since midnight (matches scheduler convention — see CLAUDE.md JVM constraints).

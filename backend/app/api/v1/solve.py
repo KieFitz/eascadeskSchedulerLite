@@ -19,9 +19,35 @@ router = APIRouter(tags=["solve"])
 
 _DOW_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
+# Indices into _DOW_NAMES for each recurrence group
+_RECURRENCE_DAYS: dict[str, list[int]] = {
+    "weekdays":  [0, 1, 2, 3, 4],
+    "weekends":  [5, 6],
+    "every_day": [0, 1, 2, 3, 4, 5, 6],
+}
+
 
 def _mins_to_hhmm(mins: int) -> str:
     return f"{mins // 60:02d}:{mins % 60:02d}"
+
+
+def _expand_rule(r) -> list[dict]:
+    """Convert a single EmployeeAvailability row into one or more solver span dicts."""
+    start = _mins_to_hhmm(r.start_min)
+    end   = _mins_to_hhmm(r.end_min)
+
+    if r.recurrence != "none":
+        return [
+            {"day": _DOW_NAMES[i], "start": start, "end": end}
+            for i in _RECURRENCE_DAYS[r.recurrence]
+        ]
+
+    if r.specific_date is not None:
+        day_str = r.specific_date.isoformat()
+    else:
+        day_str = _DOW_NAMES[r.day_of_week]
+
+    return [{"day": day_str, "start": start, "end": end}]
 
 
 async def _merge_db_availability(employees_data: list[dict], user_id: str, db: AsyncSession) -> list[dict]:
@@ -30,7 +56,6 @@ async def _merge_db_availability(employees_data: list[dict], user_id: str, db: A
     matching by employee name (since Excel-sourced employees have no DB id yet).
     DB rules take precedence over any spans from the Excel upload.
     """
-    # Build name → DB employee map for this user
     emp_result = await db.execute(
         select(EmployeeModel).where(EmployeeModel.user_id == user_id)
     )
@@ -39,15 +64,13 @@ async def _merge_db_availability(employees_data: list[dict], user_id: str, db: A
     if not db_employees:
         return employees_data
 
-    # Fetch all availability rules for these employees in one query
     db_emp_ids = [e.id for e in db_employees.values()]
     avail_result = await db.execute(
         select(EmployeeAvailability).where(EmployeeAvailability.employee_id.in_(db_emp_ids))
     )
     avail_rows = avail_result.scalars().all()
 
-    # Group by employee_id
-    avail_by_emp: dict[str, list[EmployeeAvailability]] = {}
+    avail_by_emp: dict[str, list] = {}
     for row in avail_rows:
         avail_by_emp.setdefault(row.employee_id, []).append(row)
 
@@ -64,26 +87,17 @@ async def _merge_db_availability(employees_data: list[dict], user_id: str, db: A
             continue
 
         unavailable_spans = []
-        preferred_spans = []
+        preferred_spans   = []
         unpreferred_spans = []
 
         for r in rules:
-            if r.specific_date is not None:
-                day_str = r.specific_date.isoformat()
-            else:
-                day_str = _DOW_NAMES[r.day_of_week]
-
-            span = {
-                "day":   day_str,
-                "start": _mins_to_hhmm(r.start_min),
-                "end":   _mins_to_hhmm(r.end_min),
-            }
+            spans = _expand_rule(r)
             if r.type == "unavailable":
-                unavailable_spans.append(span)
+                unavailable_spans.extend(spans)
             elif r.type == "preferred":
-                preferred_spans.append(span)
+                preferred_spans.extend(spans)
             else:
-                unpreferred_spans.append(span)
+                unpreferred_spans.extend(spans)
 
         merged.append({
             **emp,

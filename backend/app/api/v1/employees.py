@@ -121,10 +121,6 @@ async def create_availability(
     db: AsyncSession = Depends(get_db),
 ):
     await _load_owned_employee(db, employee_id, current_user)
-    if body.day_of_week is None and body.specific_date is None:
-        raise HTTPException(
-            status_code=400, detail="Provide either day_of_week or specific_date"
-        )
     rule = EmployeeAvailability(employee_id=employee_id, **body.model_dump())
     db.add(rule)
     await db.commit()

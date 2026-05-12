@@ -30,6 +30,15 @@ const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 
 const AVAIL_COLOUR = { preferred: 'teal', unpreferred: 'amber', unavailable: 'gray' }
 
+// "Applies to" selector options
+const APPLIES_OPTIONS = [
+  { value: 'weekdays',  label: 'Every weekday (Mon–Fri)' },
+  { value: 'weekends',  label: 'Every weekend (Sat–Sun)' },
+  { value: 'every_day', label: 'Every day' },
+  { value: 'dow',       label: 'Specific day of week…' },
+  { value: 'date',      label: 'Specific date…' },
+]
+
 const EMPTY_FORM = {
   name: '',
   phone: '',
@@ -41,9 +50,12 @@ const EMPTY_FORM = {
 
 const EMPTY_AVAIL = {
   type: 'preferred',
+  applies: 'weekdays',  // one of APPLIES_OPTIONS values
   day_of_week: '0',
+  specific_date: '',
   start: '09:00',
   end: '17:00',
+  allDay: false,
 }
 
 function minutesToHHMM(min) {
@@ -366,6 +378,19 @@ export default function Employees() {
 
 // ── Availability panel (rendered inline below each expanded row) ──────────────
 
+const RECURRENCE_LABEL = {
+  none:      null,
+  weekdays:  'Mon–Fri',
+  weekends:  'Sat–Sun',
+  every_day: 'Every day',
+}
+
+function ruleLabel(r) {
+  if (r.recurrence && r.recurrence !== 'none') return RECURRENCE_LABEL[r.recurrence]
+  if (r.specific_date) return r.specific_date
+  return DAY_FULL[r.day_of_week]
+}
+
 function AvailabilityPanel({ employeeId, rules, onChange }) {
   const [form, setForm] = useState(EMPTY_AVAIL)
   const [adding, setAdding] = useState(false)
@@ -373,12 +398,26 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
   const handleAdd = async () => {
     setAdding(true)
     try {
-      const created = await createAvailability(employeeId, {
-        type: form.type,
-        day_of_week: Number(form.day_of_week),
-        start_min: hhmmToMinutes(form.start),
-        end_min: hhmmToMinutes(form.end),
-      })
+      const startMin = form.allDay ? 0    : hhmmToMinutes(form.start)
+      const endMin   = form.allDay ? 1439 : hhmmToMinutes(form.end)
+
+      const payload = {
+        type:      form.type,
+        start_min: startMin,
+        end_min:   endMin,
+      }
+
+      if (form.applies === 'dow') {
+        payload.recurrence   = 'none'
+        payload.day_of_week  = Number(form.day_of_week)
+      } else if (form.applies === 'date') {
+        payload.recurrence    = 'none'
+        payload.specific_date = form.specific_date
+      } else {
+        payload.recurrence = form.applies  // weekdays | weekends | every_day
+      }
+
+      const created = await createAvailability(employeeId, payload)
       onChange([...rules, created])
       setForm(EMPTY_AVAIL)
     } catch (err) {
@@ -397,87 +436,132 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
     }
   }
 
+  const sel = 'rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple'
+
   return (
     <div>
       <p className="text-xs uppercase tracking-wider text-muted font-semibold mb-3">
         Availability rules
       </p>
 
+      {/* Rules table */}
       {rules.length === 0 ? (
         <p className="text-xs text-muted mb-3">No rules — employee is fully available by default.</p>
       ) : (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {rules.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-gray-100 text-xs"
-            >
-              <Badge colour={AVAIL_COLOUR[r.type]}>{r.type}</Badge>
-              <span className="text-dark font-medium">
-                {r.specific_date ? r.specific_date : DAY_FULL[r.day_of_week]}
-              </span>
-              <span className="text-muted font-mono">
-                {minutesToHHMM(r.start_min)}–{minutesToHHMM(r.end_min)}
-              </span>
-              <button
-                onClick={() => handleRemove(r.id)}
-                className="text-muted hover:text-red-500 ml-1"
-              >
-                <TrashIcon className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
+        <table className="w-full text-xs mb-4">
+          <thead>
+            <tr className="text-left text-muted border-b border-gray-100">
+              <th className="pb-1.5 pr-4 font-medium">Type</th>
+              <th className="pb-1.5 pr-4 font-medium">Applies to</th>
+              <th className="pb-1.5 pr-4 font-medium">Time</th>
+              <th className="pb-1.5"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {rules.map((r) => (
+              <tr key={r.id} className="hover:bg-white/60">
+                <td className="py-1.5 pr-4">
+                  <Badge colour={AVAIL_COLOUR[r.type]}>{r.type}</Badge>
+                </td>
+                <td className="py-1.5 pr-4 font-medium text-dark">{ruleLabel(r)}</td>
+                <td className="py-1.5 pr-4 font-mono text-muted">
+                  {minutesToHHMM(r.start_min) === '00:00' && minutesToHHMM(r.end_min) === '23:59'
+                    ? 'All day'
+                    : `${minutesToHHMM(r.start_min)} – ${minutesToHHMM(r.end_min)}`}
+                </td>
+                <td className="py-1.5 text-right">
+                  <button
+                    onClick={() => handleRemove(r.id)}
+                    className="text-muted hover:text-red-500"
+                    title="Remove rule"
+                  >
+                    <TrashIcon className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {/* Add rule form */}
-      <div className="flex flex-wrap items-end gap-2 bg-white rounded-lg p-3 border border-dashed border-gray-200">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">Type</label>
-          <select
-            value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-            className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-          >
-            <option value="preferred">Preferred</option>
-            <option value="unpreferred">Unpreferred</option>
-            <option value="unavailable">Unavailable</option>
-          </select>
+      <div className="bg-white rounded-lg p-3 border border-dashed border-gray-200 space-y-2">
+        <p className="text-xs text-muted font-medium">Add rule</p>
+        <div className="flex flex-wrap items-end gap-2">
+          {/* Type */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted">Type</label>
+            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={sel}>
+              <option value="preferred">Preferred</option>
+              <option value="unpreferred">Unpreferred</option>
+              <option value="unavailable">Unavailable</option>
+            </select>
+          </div>
+
+          {/* Applies to */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted">Applies to</label>
+            <select value={form.applies} onChange={(e) => setForm({ ...form, applies: e.target.value })} className={sel}>
+              {APPLIES_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Day picker — only when applies == 'dow' */}
+          {form.applies === 'dow' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">Day</label>
+              <select value={form.day_of_week} onChange={(e) => setForm({ ...form, day_of_week: e.target.value })} className={sel}>
+                {DAYS.map((d, i) => <option key={d} value={i}>{DAY_FULL[i]}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Date picker — only when applies == 'date' */}
+          {form.applies === 'date' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">Date</label>
+              <input
+                type="date"
+                value={form.specific_date}
+                onChange={(e) => setForm({ ...form, specific_date: e.target.value })}
+                className={sel}
+              />
+            </div>
+          )}
+
+          {/* Time range — hidden when All day checked */}
+          {!form.allDay && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted">From</label>
+                <input type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} className={sel} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted">To</label>
+                <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} className={sel} />
+              </div>
+            </>
+          )}
+
+          {/* All day toggle */}
+          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer pb-1.5">
+            <input
+              type="checkbox"
+              checked={form.allDay}
+              onChange={(e) => setForm({ ...form, allDay: e.target.checked })}
+              className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
+            />
+            All day
+          </label>
+
+          <Button size="sm" onClick={handleAdd} loading={adding}
+            disabled={form.applies === 'date' && !form.specific_date}>
+            <PlusIcon className="h-4 w-4" />
+            Add
+          </Button>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">Day of week</label>
-          <select
-            value={form.day_of_week}
-            onChange={(e) => setForm({ ...form, day_of_week: e.target.value })}
-            className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-          >
-            {DAYS.map((d, i) => (
-              <option key={d} value={i}>{d}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">From</label>
-          <input
-            type="time"
-            value={form.start}
-            onChange={(e) => setForm({ ...form, start: e.target.value })}
-            className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted">To</label>
-          <input
-            type="time"
-            value={form.end}
-            onChange={(e) => setForm({ ...form, end: e.target.value })}
-            className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-          />
-        </div>
-        <Button size="sm" onClick={handleAdd} loading={adding}>
-          <PlusIcon className="h-4 w-4" />
-          Add rule
-        </Button>
       </div>
     </div>
   )

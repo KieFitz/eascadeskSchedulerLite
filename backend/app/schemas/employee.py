@@ -2,12 +2,13 @@ import re
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # E.164: leading +, 8–15 digits.
 PHONE_RE = re.compile(r"^\+[1-9]\d{7,14}$")
 
 AvailabilityType = Literal["preferred", "unpreferred", "unavailable"]
+RecurrenceType = Literal["none", "weekdays", "weekends", "every_day"]
 
 
 def _validate_phone(v: str) -> str:
@@ -19,6 +20,8 @@ def _validate_phone(v: str) -> str:
 
 class AvailabilityIn(BaseModel):
     type: AvailabilityType
+    recurrence: RecurrenceType = "none"
+    # Required when recurrence == 'none'; null otherwise.
     day_of_week: int | None = Field(default=None, ge=0, le=6)
     specific_date: date | None = None
     start_min: int = Field(ge=0, le=1440)
@@ -31,6 +34,16 @@ class AvailabilityIn(BaseModel):
         if start is not None and v <= start:
             raise ValueError("end_min must be greater than start_min")
         return v
+
+    @model_validator(mode="after")
+    def _check_target(self):
+        if self.recurrence == "none":
+            if self.day_of_week is None and self.specific_date is None:
+                raise ValueError("Provide day_of_week or specific_date when recurrence is 'none'")
+        else:
+            self.day_of_week = None
+            self.specific_date = None
+        return self
 
 
 class AvailabilityOut(AvailabilityIn):
