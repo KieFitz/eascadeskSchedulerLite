@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""  # e.g. whatsapp:+14155238886
+    # Set to "true" to skip webhook signature validation (local dev / ngrok)
+    TWILIO_SKIP_SIGNATURE: str = "false"
 
     # Content template SIDs — create these in Twilio Console → Content Editor
     TWILIO_TMPL_MAIN_MENU: str = ""
