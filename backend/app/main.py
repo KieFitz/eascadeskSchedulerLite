@@ -13,6 +13,7 @@ import app.models.availability  # noqa: F401
 import app.models.shift_definition  # noqa: F401
 import app.models.shift_assignment  # noqa: F401
 import app.models.clock_event  # noqa: F401
+import app.models.whatsapp_session  # noqa: F401
 
 app = FastAPI(
     title="eascadeskScheduler Lite",

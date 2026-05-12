@@ -27,7 +27,7 @@ class ClockEvent(Base):
         index=True,
     )
     event_type: Mapped[str] = mapped_column(
-        Enum("in", "out", name="clock_event_type_enum"), nullable=False
+        Enum("in", "out", "break_start", "break_end", name="clock_event_type_enum"), nullable=False
     )
     event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     source: Mapped[str] = mapped_column(

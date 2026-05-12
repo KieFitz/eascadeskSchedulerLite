@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, clock, employees, export, payments, schedules, solve, template, uploads
+from app.api.v1 import auth, clock, employees, export, payments, schedules, solve, template, uploads, whatsapp
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -13,3 +13,4 @@ api_router.include_router(template.router)
 api_router.include_router(payments.router)
 api_router.include_router(employees.router)
 api_router.include_router(clock.router)
+api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])

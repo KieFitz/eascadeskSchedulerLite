@@ -24,6 +24,18 @@ class Settings(BaseSettings):
 
     ADMIN_EMAIL: str = ""
 
+    # ── Twilio WhatsApp bot ───────────────────────────────────────────────────
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_WHATSAPP_FROM: str = ""  # e.g. whatsapp:+14155238886
+
+    # Content template SIDs — create these in Twilio Console → Content Editor
+    TWILIO_TMPL_MAIN_MENU: str = ""
+    TWILIO_TMPL_FICHAR_MENU: str = ""
+    TWILIO_TMPL_BREAK_MENU: str = ""
+    TWILIO_TMPL_MORE_MENU: str = ""
+    TWILIO_TMPL_HOURS_MENU: str = ""
+
     # Comma-separated allowed CORS origins.
     # e.g. "https://d123.cloudfront.net,http://localhost:5173"
     ALLOWED_ORIGINS: str = "http://localhost:5173,https://scheduler-lite.eascadesk.ie"
