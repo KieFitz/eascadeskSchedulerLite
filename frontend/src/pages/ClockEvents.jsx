@@ -285,35 +285,39 @@ export default function ClockEvents() {
                     <td className="px-4 py-3">
                       <Badge colour={SOURCE_COLOUR[e.source] ?? 'gray'}>{e.source}</Badge>
                     </td>
-                    <td className="px-4 py-3 flex flex-wrap gap-1">
-                      {e.is_estimated && (
-                        <Badge colour="amber" title="Time was auto-filled from scheduled shift — please review">
-                          Estimated
-                        </Badge>
-                      )}
-                      {e.deleted_at && (
-                        <Badge colour="red" title={`Deleted ${formatDateTime(e.deleted_at)}${e.delete_reason ? ': ' + e.delete_reason : ''}`}>
-                          Deleted
-                        </Badge>
-                      )}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {e.is_estimated && (
+                          <Badge colour="amber" title="Time was auto-filled from scheduled shift — please review">
+                            Estimated
+                          </Badge>
+                        )}
+                        {e.deleted_at && (
+                          <Badge colour="red" title={`Deleted ${formatDateTime(e.deleted_at)}${e.delete_reason ? ': ' + e.delete_reason : ''}`}>
+                            Deleted
+                          </Badge>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-right flex justify-end gap-1">
-                      <button
-                        onClick={() => openAuditPanel(e)}
-                        className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
-                        title="View audit trail"
-                      >
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
-                      {!e.deleted_at && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
                         <button
-                          onClick={() => openDeleteModal(e)}
-                          className="text-muted hover:text-red-500 p-1.5 rounded transition-colors"
-                          title="Delete event"
+                          onClick={() => openAuditPanel(e)}
+                          className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
+                          title="View audit trail"
                         >
-                          <TrashIcon className="h-4 w-4" />
+                          <EyeIcon className="h-4 w-4" />
                         </button>
-                      )}
+                        {!e.deleted_at && (
+                          <button
+                            onClick={() => openDeleteModal(e)}
+                            className="text-muted hover:text-red-500 p-1.5 rounded transition-colors"
+                            title="Delete event"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
