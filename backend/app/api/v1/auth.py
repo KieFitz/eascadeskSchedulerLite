@@ -92,6 +92,8 @@ async def update_settings(
 ):
     if body.country is not None:
         current_user.country = body.country
+    if body.timezone is not None:
+        current_user.timezone = body.timezone
     await db.commit()
     await db.refresh(current_user)
     return current_user

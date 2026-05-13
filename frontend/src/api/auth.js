@@ -15,7 +15,7 @@ export async function me() {
   return data
 }
 
-export async function updateSettings(country) {
-  const { data } = await client.patch('/auth/me', { country })
+export async function updateSettings({ country, timezone } = {}) {
+  const { data } = await client.patch('/auth/me', { country, timezone })
   return data
 }

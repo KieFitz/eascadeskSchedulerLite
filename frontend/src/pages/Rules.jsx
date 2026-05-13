@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircleIcon, GlobeAltIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, ClockIcon, GlobeAltIcon } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import Layout from '../components/layout/Layout'
 import Button from '../components/common/Button'
@@ -8,10 +8,31 @@ import { updateSettings } from '../api/auth'
 import { useTranslations } from '../i18n'
 import toast from 'react-hot-toast'
 
+const TIMEZONES = [
+  { value: 'Europe/Dublin',    label: 'Europe/Dublin (Ireland, UTC+0/+1)' },
+  { value: 'Europe/London',    label: 'Europe/London (UK, UTC+0/+1)' },
+  { value: 'Europe/Madrid',    label: 'Europe/Madrid (Spain, UTC+1/+2)' },
+  { value: 'Europe/Paris',     label: 'Europe/Paris (France, UTC+1/+2)' },
+  { value: 'Europe/Berlin',    label: 'Europe/Berlin (Germany, UTC+1/+2)' },
+  { value: 'Europe/Lisbon',    label: 'Europe/Lisbon (Portugal, UTC+0/+1)' },
+  { value: 'Europe/Amsterdam', label: 'Europe/Amsterdam (Netherlands, UTC+1/+2)' },
+  { value: 'Europe/Warsaw',    label: 'Europe/Warsaw (Poland, UTC+1/+2)' },
+  { value: 'Europe/Bucharest', label: 'Europe/Bucharest (Romania, UTC+2/+3)' },
+  { value: 'Atlantic/Canary',  label: 'Atlantic/Canary (Canary Islands, UTC+0/+1)' },
+  { value: 'UTC',              label: 'UTC' },
+]
+
+const COUNTRY_DEFAULT_TZ = {
+  IE: 'Europe/Dublin',
+  GB: 'Europe/London',
+  ES: 'Europe/Madrid',
+}
+
 export default function Rules() {
   const { user, refreshUser } = useAuth()
   const { t } = useTranslations(user?.country)
   const [selected, setSelected] = useState(user?.country ?? null)
+  const [timezone, setTimezone] = useState(user?.timezone ?? '')
   const [saving, setSaving] = useState(false)
 
   // When the page is rendered with a different country in-progress selection,
@@ -20,14 +41,26 @@ export default function Rules() {
 
   useEffect(() => {
     setSelected(user?.country ?? null)
-  }, [user?.country])
+    setTimezone(user?.timezone ?? '')
+  }, [user?.country, user?.timezone])
 
-  const isDirty = selected !== (user?.country ?? null)
+  // When country changes and timezone hasn't been explicitly set, suggest the default
+  const handleCountrySelect = (code) => {
+    setSelected((prev) => {
+      const next = prev === code ? null : code
+      if (next && !user?.timezone) setTimezone(COUNTRY_DEFAULT_TZ[next] ?? '')
+      return next
+    })
+  }
+
+  const isDirty =
+    selected !== (user?.country ?? null) ||
+    timezone !== (user?.timezone ?? '')
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updateSettings(selected)
+      await updateSettings({ country: selected, timezone: timezone || null })
       await refreshUser()
       toast.success(t('toastCountrySaved'))
     } catch {
@@ -63,7 +96,7 @@ export default function Rules() {
             return (
               <button
                 key={c.code}
-                onClick={() => setSelected(isSelected ? null : c.code)}
+                onClick={() => handleCountrySelect(c.code)}
                 className={[
                   'text-left rounded-xl border-2 p-5 transition-all duration-150 focus:outline-none',
                   'focus:ring-2 focus:ring-brand-purple focus:ring-offset-2',
@@ -108,6 +141,31 @@ export default function Rules() {
             </div>
           ) : null
         })()}
+
+        {/* Timezone */}
+        <div className="bg-white rounded-xl shadow-soft p-6 mb-5">
+          <div className="flex items-start gap-4">
+            <div className="p-2.5 rounded-lg bg-brand-purple/10 flex-shrink-0">
+              <ClockIcon className="h-6 w-6 text-brand-purple" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-semibold text-dark mb-1">Business Timezone</h2>
+              <p className="text-sm text-muted leading-relaxed mb-3">
+                Times shown to employees in WhatsApp messages (clock-in/out confirmations) use this timezone.
+              </p>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent"
+              >
+                <option value="">— Select timezone —</option>
+                {TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>{tz.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
 
         {/* Save */}
         <div className="flex items-center gap-3">

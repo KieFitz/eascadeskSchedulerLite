@@ -23,6 +23,7 @@ class User(Base):
         Enum("free", "paid", name="plan_enum"), default="free", nullable=False
     )
     country: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    timezone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(

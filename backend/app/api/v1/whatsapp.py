@@ -22,6 +22,7 @@ Language support:
 
 import datetime
 import uuid
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, Request, Response
@@ -33,6 +34,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.clock_event import ClockEvent
 from app.models.employee import Employee
 from app.models.shift_assignment import ShiftAssignment
+from app.models.user import User
 from app.models.whatsapp_session import WhatsAppSession
 
 router = APIRouter()
@@ -53,6 +55,24 @@ ID_HOURS_MONTH = "hours_month"
 ID_BACK = "back"
 
 SESSION_TTL_MINUTES = 30
+DEFAULT_TZ = "Europe/Dublin"
+
+# ── Timezone helpers ──────────────────────────────────────────────────────────
+
+def _tz(tz_name: str | None) -> ZoneInfo:
+    try:
+        return ZoneInfo(tz_name or DEFAULT_TZ)
+    except Exception:
+        return ZoneInfo(DEFAULT_TZ)
+
+
+def _local_now(tz_name: str | None) -> datetime.datetime:
+    return datetime.datetime.now(_tz(tz_name))
+
+
+def _to_local(dt: datetime.datetime, tz_name: str | None) -> datetime.datetime:
+    return dt.astimezone(_tz(tz_name))
+
 
 # ── Localised strings ─────────────────────────────────────────────────────────
 STRINGS: dict[str, dict[str, str]] = {
@@ -393,20 +413,21 @@ async def _write_clock_event(db, employee_id: str, event_type: str, raw: dict) -
     db.add(event)
 
 
-async def _last_clock_state(db, employee_id: str) -> tuple[str | None, datetime.datetime | None]:
+async def _last_clock_state(db, employee_id: str, tz_name: str | None) -> tuple[str | None, datetime.datetime | None]:
     """
-    Return (last_event_type, last_event_at) for the most recent in/out event today.
+    Return (last_event_type, last_event_at) for the most recent in/out event today
+    (where "today" is defined in the business's local timezone, not UTC).
     Returns (None, None) if no events today.
     """
-    today_start = datetime.datetime.now(datetime.timezone.utc).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    local_now = _local_now(tz_name)
+    today_start_local = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = today_start_local.astimezone(datetime.timezone.utc)
     result = await db.execute(
         select(ClockEvent)
         .where(
             ClockEvent.employee_id == employee_id,
             ClockEvent.event_type.in_(["in", "out"]),
-            ClockEvent.event_at >= today_start,
+            ClockEvent.event_at >= today_start_utc,
         )
         .order_by(ClockEvent.event_at.desc())
         .limit(1)
@@ -426,19 +447,19 @@ async def _handle_direct_clock(
     session: WhatsAppSession,
     raw: dict,
     to: str,
+    tz_name: str | None,
 ) -> None:
     """
     Handle "in" / "out" shortcuts directly, bypassing menus.
     Includes guard logic: warns if already clocked in (for "in") or not clocked in (for "out").
     """
     lang = session.language
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M")
-    last_type, last_at = await _last_clock_state(db, employee.id)
+    now_str = _local_now(tz_name).strftime("%H:%M")
+    last_type, last_at = await _last_clock_state(db, employee.id, tz_name)
 
     if effective == ID_CLOCK_IN:
         if last_type == "in":
-            # Already clocked in — ask if they meant to clock out
-            since = last_at.strftime("%H:%M") if last_at else "?"
+            since = _to_local(last_at, tz_name).strftime("%H:%M") if last_at else "?"
             _send_text(to, _t(lang, "already_clocked_in", time=since))
             session.state = "confirm_clock_out"
         else:
@@ -448,7 +469,6 @@ async def _handle_direct_clock(
 
     elif effective == ID_CLOCK_OUT:
         if last_type != "in":
-            # Not clocked in — ask if they meant to clock in
             _send_text(to, _t(lang, "not_clocked_in"))
             session.state = "confirm_clock_in"
         else:
@@ -464,11 +484,11 @@ async def _handle_confirm(
     session: WhatsAppSession,
     raw: dict,
     to: str,
+    tz_name: str | None,
 ) -> None:
     """Handle yes/no confirmation for mismatched clock in/out."""
     lang = session.language
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M")
-    # Accept "yes"/"sí"/"si" as affirmative
+    now_str = _local_now(tz_name).strftime("%H:%M")
     is_yes = body_lower in ("yes", "sí", "si", "y", "s")
     is_no = body_lower in ("no", "n")
 
@@ -479,7 +499,6 @@ async def _handle_confirm(
         elif is_no:
             _send_text(to, _t(lang, "cancelled"))
         else:
-            # Unrecognised — re-prompt
             _send_text(to, _t(lang, "not_clocked_in"))
             return
         session.state = "main_menu"
@@ -491,8 +510,8 @@ async def _handle_confirm(
         elif is_no:
             _send_text(to, _t(lang, "cancelled"))
         else:
-            last_type, last_at = await _last_clock_state(db, employee.id)
-            since = last_at.strftime("%H:%M") if last_at else "?"
+            last_type, last_at = await _last_clock_state(db, employee.id, tz_name)
+            since = _to_local(last_at, tz_name).strftime("%H:%M") if last_at else "?"
             _send_text(to, _t(lang, "already_clocked_in", time=since))
             return
         session.state = "main_menu"
@@ -505,10 +524,11 @@ async def _handle_clock(
     session: WhatsAppSession,
     raw: dict,
     to: str,
+    tz_name: str | None,
 ) -> None:
     """Handle clock actions from the Fichar sub-menu."""
     lang = session.language
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M")
+    now_str = _local_now(tz_name).strftime("%H:%M")
 
     if payload == ID_CLOCK_IN:
         await _write_clock_event(db, employee.id, "in", raw)
@@ -532,9 +552,10 @@ async def _handle_break(
     session: WhatsAppSession,
     raw: dict,
     to: str,
+    tz_name: str | None,
 ) -> None:
     lang = session.language
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M")
+    now_str = _local_now(tz_name).strftime("%H:%M")
 
     if payload == ID_BREAK_START:
         await _write_clock_event(db, employee.id, "break_start", raw)
@@ -579,16 +600,19 @@ async def _handle_hours(
     employee: Employee,
     session: WhatsAppSession,
     to: str,
+    tz_name: str | None,
 ) -> None:
     lang = session.language
-    now = datetime.datetime.now(datetime.timezone.utc)
+    local_now = _local_now(tz_name)
 
     if payload == ID_HOURS_WEEK:
-        monday = now.date() - datetime.timedelta(days=now.weekday())
-        period_start = datetime.datetime(monday.year, monday.month, monday.day, tzinfo=datetime.timezone.utc)
+        monday = local_now.date() - datetime.timedelta(days=local_now.weekday())
+        period_start_local = datetime.datetime(monday.year, monday.month, monday.day, tzinfo=_tz(tz_name))
+        period_start = period_start_local.astimezone(datetime.timezone.utc)
         label = _t(lang, "this_week")
     elif payload == ID_HOURS_MONTH:
-        period_start = datetime.datetime(now.year, now.month, 1, tzinfo=datetime.timezone.utc)
+        period_start_local = datetime.datetime(local_now.year, local_now.month, 1, tzinfo=_tz(tz_name))
+        period_start = period_start_local.astimezone(datetime.timezone.utc)
         label = _t(lang, "this_month")
     elif payload == ID_BACK:
         _send_more_menu(to, lang)
@@ -657,6 +681,10 @@ async def whatsapp_webhook(request: Request) -> Response:
 
         session = await _get_or_create_session(db, employee.id)
 
+        # Look up the business's timezone from the owning User record
+        user_result = await db.get(User, employee.user_id)
+        tz_name: str | None = user_result.timezone if user_result else None
+
         # Detect language from inbound message (always runs so user can switch at any time)
         session.language = _detect_language(body_lower, session.language)
         lang = session.language
@@ -666,11 +694,11 @@ async def whatsapp_webhook(request: Request) -> Response:
 
         # ── Confirmation states (yes/no responses) ────────────────────────────
         if state in ("confirm_clock_in", "confirm_clock_out"):
-            await _handle_confirm(body_lower, db, employee, session, form_dict, from_field)
+            await _handle_confirm(body_lower, db, employee, session, form_dict, from_field, tz_name)
 
         # ── Direct shortcuts — bypass menus regardless of state ───────────────
         elif effective in (ID_CLOCK_IN, ID_CLOCK_OUT):
-            await _handle_direct_clock(effective, db, employee, session, form_dict, from_field)
+            await _handle_direct_clock(effective, db, employee, session, form_dict, from_field, tz_name)
 
         elif effective == ID_SCHEDULE:
             await _handle_schedule(db, employee, from_field, lang)
@@ -695,10 +723,10 @@ async def whatsapp_webhook(request: Request) -> Response:
 
         # ── State-machine sub-menu handling ───────────────────────────────────
         elif state == "fichar":
-            await _handle_clock(effective, db, employee, session, form_dict, from_field)
+            await _handle_clock(effective, db, employee, session, form_dict, from_field, tz_name)
 
         elif state == "break":
-            await _handle_break(effective, db, employee, session, form_dict, from_field)
+            await _handle_break(effective, db, employee, session, form_dict, from_field, tz_name)
 
         elif state == "more":
             if effective == ID_AVAILABILITY:
@@ -711,7 +739,7 @@ async def whatsapp_webhook(request: Request) -> Response:
                 _send_more_menu(from_field, lang)
 
         elif state == "hours":
-            await _handle_hours(effective, db, employee, session, from_field)
+            await _handle_hours(effective, db, employee, session, from_field, tz_name)
 
         else:
             # First contact, "hi", "hola", or anything unrecognised → main menu
