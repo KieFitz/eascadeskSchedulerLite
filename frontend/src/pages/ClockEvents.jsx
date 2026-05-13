@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   ArrowDownTrayIcon,
   ClockIcon,
+  EyeIcon,
   PlusIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline'
@@ -13,12 +14,19 @@ import EmptyState from '../components/common/EmptyState'
 import Badge from '../components/common/Badge'
 import Modal from '../components/common/Modal'
 import Input from '../components/common/Input'
-import { listClockEvents, createClockEventManual, deleteClockEvent } from '../api/clock'
+import {
+  listClockEvents,
+  createClockEventManual,
+  deleteClockEvent,
+  getClockEventAudit,
+  exportClockEventsCsv,
+} from '../api/clock'
 import { listEmployees } from '../api/employees'
-import client from '../api/client'
 
-const EVENT_COLOUR = { in: 'teal', out: 'amber' }
-const SOURCE_COLOUR = { whatsapp: 'purple', manual: 'gray' }
+const EVENT_COLOUR  = { in: 'teal', out: 'amber', break_start: 'gray', break_end: 'gray' }
+const EVENT_LABEL   = { in: 'Clock in', out: 'Clock out', break_start: 'Break start', break_end: 'Break end' }
+const SOURCE_COLOUR = { whatsapp: 'purple', manual: 'gray', auto: 'amber' }
+const ACTION_COLOUR = { create: 'teal', edit: 'gray', delete: 'red' }
 
 function formatDateTime(iso) {
   const d = new Date(iso)
@@ -35,27 +43,39 @@ export default function ClockEvents() {
   const [exporting, setExporting] = useState(false)
 
   // Filters
-  const [filterEmp,  setFilterEmp]  = useState('')
-  const [filterFrom, setFilterFrom] = useState('')
-  const [filterTo,   setFilterTo]   = useState('')
+  const [filterEmp,     setFilterEmp]     = useState('')
+  const [filterFrom,    setFilterFrom]    = useState('')
+  const [filterTo,      setFilterTo]      = useState('')
+  const [showDeleted,   setShowDeleted]   = useState(false)
 
   // Manual event modal
   const [modalOpen, setModalOpen]   = useState(false)
-  const [manualForm, setManualForm] = useState({ employeeId: '', eventType: 'in', eventAt: '' })
+  const [manualForm, setManualForm] = useState({ employeeId: '', eventType: 'in', eventAt: '', reason: '' })
   const [saving, setSaving]         = useState(false)
+
+  // Delete confirmation modal
+  const [deleteTarget, setDeleteTarget]   = useState(null)  // { id, label }
+  const [deleteReason, setDeleteReason]   = useState('')
+  const [deleting, setDeleting]           = useState(false)
+
+  // Audit trail panel
+  const [auditEvent, setAuditEvent]   = useState(null)  // { id, label }
+  const [auditLog, setAuditLog]       = useState([])
+  const [auditLoading, setAuditLoading] = useState(false)
 
   const fetchEvents = useCallback(async () => {
     try {
       const data = await listClockEvents({
-        employeeId: filterEmp  || undefined,
-        dateFrom:   filterFrom || undefined,
-        dateTo:     filterTo   || undefined,
+        employeeId:     filterEmp  || undefined,
+        dateFrom:       filterFrom || undefined,
+        dateTo:         filterTo   || undefined,
+        includeDeleted: showDeleted,
       })
       setEvents(data)
     } catch (err) {
       toast.error(err?.response?.data?.detail ?? 'Failed to load clock events')
     }
-  }, [filterEmp, filterFrom, filterTo])
+  }, [filterEmp, filterFrom, filterTo, showDeleted])
 
   useEffect(() => {
     listEmployees()
@@ -71,16 +91,13 @@ export default function ClockEvents() {
   const handleExportCsv = async () => {
     setExporting(true)
     try {
-      const params = {}
-      if (filterEmp)  params.employee_id = filterEmp
-      if (filterFrom) params.date_from   = filterFrom
-      if (filterTo)   params.date_to     = filterTo
-
-      const response = await client.get('/clock/events/export.csv', {
-        params,
-        responseType: 'blob',
+      const blob = await exportClockEventsCsv({
+        employeeId:     filterEmp  || undefined,
+        dateFrom:       filterFrom || undefined,
+        dateTo:         filterTo   || undefined,
+        includeDeleted: showDeleted,
       })
-      const url  = window.URL.createObjectURL(new Blob([response.data]))
+      const url  = window.URL.createObjectURL(new Blob([blob]))
       const link = document.createElement('a')
       link.href  = url
       link.download = `clock_events_${new Date().toISOString().slice(0, 10)}.csv`
@@ -95,14 +112,23 @@ export default function ClockEvents() {
     }
   }
 
-  const handleDelete = async (eventId) => {
-    if (!window.confirm('Delete this clock event?')) return
+  const openDeleteModal = (e) => {
+    setDeleteTarget({ id: e.id, label: `${e.employee_name} — ${EVENT_LABEL[e.event_type] ?? e.event_type} at ${formatDateTime(e.event_at)}` })
+    setDeleteReason('')
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await deleteClockEvent(eventId)
-      setEvents((prev) => prev.filter((e) => e.id !== eventId))
-      toast.success('Event deleted')
+      await deleteClockEvent(deleteTarget.id, deleteReason || undefined)
+      setDeleteTarget(null)
+      await fetchEvents()
+      toast.success('Event deleted (kept in audit log)')
     } catch (err) {
       toast.error(err?.response?.data?.detail ?? 'Delete failed')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -114,15 +140,30 @@ export default function ClockEvents() {
         employeeId: manualForm.employeeId,
         eventType:  manualForm.eventType,
         eventAt:    manualForm.eventAt || undefined,
+        reason:     manualForm.reason  || undefined,
       })
       setModalOpen(false)
-      setManualForm({ employeeId: '', eventType: 'in', eventAt: '' })
+      setManualForm({ employeeId: '', eventType: 'in', eventAt: '', reason: '' })
       await fetchEvents()
       toast.success(`Manual ${created.event_type} recorded`)
     } catch (err) {
       toast.error(err?.response?.data?.detail ?? 'Failed to record event')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const openAuditPanel = async (e) => {
+    setAuditEvent({ id: e.id, label: `${e.employee_name} — ${EVENT_LABEL[e.event_type] ?? e.event_type} at ${formatDateTime(e.event_at)}` })
+    setAuditLog([])
+    setAuditLoading(true)
+    try {
+      const log = await getClockEventAudit(e.id)
+      setAuditLog(log)
+    } catch {
+      toast.error('Failed to load audit trail')
+    } finally {
+      setAuditLoading(false)
     }
   }
 
@@ -135,6 +176,7 @@ export default function ClockEvents() {
             <h2 className="font-semibold text-dark">Clock In / Out Log</h2>
             <p className="text-xs text-muted mt-0.5">
               Actual hours worked — recorded via WhatsApp bot or entered manually.
+              All deletions are soft-deleted and retained for compliance.
             </p>
           </div>
           <div className="flex gap-2">
@@ -182,6 +224,16 @@ export default function ClockEvents() {
               className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
             />
           </div>
+          <div className="flex items-center gap-2 pb-0.5">
+            <input
+              id="show-deleted"
+              type="checkbox"
+              checked={showDeleted}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+              className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
+            />
+            <label htmlFor="show-deleted" className="text-sm text-muted select-none">Show deleted</label>
+          </div>
           {(filterEmp || filterFrom || filterTo) && (
             <Button
               variant="ghost"
@@ -212,31 +264,56 @@ export default function ClockEvents() {
                   <th className="px-4 py-3 text-left">Type</th>
                   <th className="px-4 py-3 text-left">Date / Time</th>
                   <th className="px-4 py-3 text-left">Source</th>
+                  <th className="px-4 py-3 text-left">Flags</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {events.map((e) => (
-                  <tr key={e.id} className="hover:bg-gray-50/60">
+                  <tr
+                    key={e.id}
+                    className={`hover:bg-gray-50/60 ${e.deleted_at ? 'opacity-50' : ''}`}
+                  >
                     <td className="px-4 py-3 font-medium text-dark">{e.employee_name}</td>
                     <td className="px-4 py-3 text-muted font-mono text-xs">{e.employee_phone}</td>
                     <td className="px-4 py-3">
-                      <Badge colour={EVENT_COLOUR[e.event_type]}>
-                        {e.event_type === 'in' ? 'Clock in' : 'Clock out'}
+                      <Badge colour={EVENT_COLOUR[e.event_type] ?? 'gray'}>
+                        {EVENT_LABEL[e.event_type] ?? e.event_type}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-dark">{formatDateTime(e.event_at)}</td>
                     <td className="px-4 py-3">
-                      <Badge colour={SOURCE_COLOUR[e.source]}>{e.source}</Badge>
+                      <Badge colour={SOURCE_COLOUR[e.source] ?? 'gray'}>{e.source}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 flex flex-wrap gap-1">
+                      {e.is_estimated && (
+                        <Badge colour="amber" title="Time was auto-filled from scheduled shift — please review">
+                          Estimated
+                        </Badge>
+                      )}
+                      {e.deleted_at && (
+                        <Badge colour="red" title={`Deleted ${formatDateTime(e.deleted_at)}${e.delete_reason ? ': ' + e.delete_reason : ''}`}>
+                          Deleted
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right flex justify-end gap-1">
                       <button
-                        onClick={() => handleDelete(e.id)}
-                        className="text-muted hover:text-red-500 p-1.5 rounded transition-colors"
-                        title="Delete event"
+                        onClick={() => openAuditPanel(e)}
+                        className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
+                        title="View audit trail"
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        <EyeIcon className="h-4 w-4" />
                       </button>
+                      {!e.deleted_at && (
+                        <button
+                          onClick={() => openDeleteModal(e)}
+                          className="text-muted hover:text-red-500 p-1.5 rounded transition-colors"
+                          title="Delete event"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -244,6 +321,7 @@ export default function ClockEvents() {
             </table>
             <p className="px-6 py-3 text-xs text-muted border-t border-gray-100">
               {events.length} event{events.length !== 1 ? 's' : ''}
+              {showDeleted && ' (including deleted)'}
             </p>
           </div>
         )}
@@ -284,6 +362,12 @@ export default function ClockEvents() {
             value={manualForm.eventAt}
             onChange={(e) => setManualForm({ ...manualForm, eventAt: e.target.value })}
           />
+          <Input
+            label="Reason / note (for audit trail)"
+            value={manualForm.reason}
+            onChange={(e) => setManualForm({ ...manualForm, reason: e.target.value })}
+            placeholder="e.g. Employee forgot to clock in via WhatsApp"
+          />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button
@@ -295,6 +379,84 @@ export default function ClockEvents() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete clock event"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-dark">
+            This event will be marked as deleted but <strong>kept in the database</strong> for
+            Spanish digital clocking compliance. The deletion will be recorded in the audit log
+            with your user ID and timestamp.
+          </p>
+          {deleteTarget && (
+            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
+              {deleteTarget.label}
+            </p>
+          )}
+          <Input
+            label="Reason for deletion (recommended)"
+            value={deleteReason}
+            onChange={(e) => setDeleteReason(e.target.value)}
+            placeholder="e.g. Duplicate entry, employee clocked twice"
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              loading={deleting}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Confirm delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Audit trail panel */}
+      <Modal
+        open={!!auditEvent}
+        onClose={() => setAuditEvent(null)}
+        title="Audit trail"
+      >
+        {auditEvent && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
+              {auditEvent.label}
+            </p>
+            {auditLoading ? (
+              <div className="flex justify-center py-8"><Spinner /></div>
+            ) : auditLog.length === 0 ? (
+              <p className="text-sm text-muted text-center py-4">No audit entries found.</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {auditLog.map((entry) => (
+                  <div key={entry.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <Badge colour={ACTION_COLOUR[entry.action] ?? 'gray'}>{entry.action}</Badge>
+                      <span className="text-xs text-muted">{formatDateTime(entry.created_at)}</span>
+                    </div>
+                    <p className="text-xs text-dark">
+                      <span className="font-medium">By:</span> {entry.actor_label}
+                    </p>
+                    {entry.reason && (
+                      <p className="text-xs text-muted mt-0.5">
+                        <span className="font-medium">Reason:</span> {entry.reason}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end pt-1">
+              <Button variant="ghost" onClick={() => setAuditEvent(null)}>Close</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </Layout>
   )

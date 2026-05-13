@@ -132,6 +132,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "confirm_yes": "yes",
         "confirm_no": "no",
         "cancelled": "OK, no changes made.",
+        "reminder_clockin": "⏰ Reminder: Your shift started at {time}. Please clock in.",
+        "auto_clockout": "Your shift ended at {time}. No clock-out was recorded — shift end time has been used. Contact your manager if overtime applies.",
     },
     "es": {
         "not_registered": "Tu número no está registrado. Contacta con tu responsable.",
@@ -189,6 +191,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "confirm_yes": "sí",
         "confirm_no": "no",
         "cancelled": "De acuerdo, sin cambios.",
+        "reminder_clockin": "⏰ Recordatorio: Tu turno comenzó a las {time}. Por favor ficha entrada.",
+        "auto_clockout": "Tu turno terminó a las {time}. No se registró salida — se ha usado la hora de fin del turno. Contacta con tu responsable si hay horas extra.",
     },
 }
 
@@ -405,13 +409,50 @@ def _detect_language(body_lower: str, current_lang: str) -> str:
 
 # ── Clock-event helpers ───────────────────────────────────────────────────────
 
-async def _write_clock_event(db, employee_id: str, event_type: str, raw: dict) -> None:
+async def _find_shift_for_now(db, employee_id: str, tz_name: str | None) -> ShiftAssignment | None:
+    """
+    Find the ShiftAssignment for today whose start_min is closest to the current local time,
+    within a ±2-hour tolerance. Used to link clock events to scheduled shifts.
+    """
+    local_now = _local_now(tz_name)
+    today = local_now.date()
+    now_min = local_now.hour * 60 + local_now.minute
+
+    result = await db.execute(
+        select(ShiftAssignment).where(
+            ShiftAssignment.employee_id == employee_id,
+            ShiftAssignment.date == today,
+        )
+    )
+    assignments = result.scalars().all()
+    if not assignments:
+        return None
+
+    TOLERANCE_MIN = 120
+    candidates = [a for a in assignments if abs(a.start_min - now_min) <= TOLERANCE_MIN]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda a: abs(a.start_min - now_min))
+
+
+async def _write_clock_event(
+    db,
+    employee_id: str,
+    event_type: str,
+    raw: dict,
+    shift_assignment_id: str | None = None,
+    is_estimated: bool = False,
+    source: str = "whatsapp",
+    event_at: datetime.datetime | None = None,
+) -> None:
     event = ClockEvent(
         id=str(uuid.uuid4()),
         employee_id=employee_id,
         event_type=event_type,
-        event_at=datetime.datetime.now(datetime.timezone.utc),
-        source="whatsapp",
+        event_at=event_at or datetime.datetime.now(datetime.timezone.utc),
+        source=source,
+        is_estimated=is_estimated,
+        shift_assignment_id=shift_assignment_id,
         raw_payload=raw,
     )
     db.add(event)
@@ -515,7 +556,8 @@ async def _handle_direct_clock(
             _send_text(to, _t(lang, "already_clocked_in", time=since))
             session.state = "confirm_clock_out"
         else:
-            await _write_clock_event(db, employee.id, "in", raw)
+            shift = await _find_shift_for_now(db, employee.id, tz_name)
+            await _write_clock_event(db, employee.id, "in", raw, shift_assignment_id=shift.id if shift else None)
             _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
             session.state = "main_menu"
 
@@ -524,8 +566,9 @@ async def _handle_direct_clock(
             _send_text(to, _t(lang, "not_clocked_in"))
             session.state = "confirm_clock_in"
         else:
+            shift = await _find_shift_for_now(db, employee.id, tz_name)
             summary = await _shift_summary(db, employee.id, tz_name, lang)
-            await _write_clock_event(db, employee.id, "out", raw)
+            await _write_clock_event(db, employee.id, "out", raw, shift_assignment_id=shift.id if shift else None)
             _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
             session.state = "main_menu"
 
@@ -547,7 +590,8 @@ async def _handle_confirm(
 
     if session.state == "confirm_clock_in":
         if is_yes:
-            await _write_clock_event(db, employee.id, "in", raw)
+            shift = await _find_shift_for_now(db, employee.id, tz_name)
+            await _write_clock_event(db, employee.id, "in", raw, shift_assignment_id=shift.id if shift else None)
             _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
         elif is_no:
             _send_text(to, _t(lang, "cancelled"))
@@ -558,8 +602,9 @@ async def _handle_confirm(
 
     elif session.state == "confirm_clock_out":
         if is_yes:
+            shift = await _find_shift_for_now(db, employee.id, tz_name)
             summary = await _shift_summary(db, employee.id, tz_name, lang)
-            await _write_clock_event(db, employee.id, "out", raw)
+            await _write_clock_event(db, employee.id, "out", raw, shift_assignment_id=shift.id if shift else None)
             _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
         elif is_no:
             _send_text(to, _t(lang, "cancelled"))
@@ -585,12 +630,14 @@ async def _handle_clock(
     now_str = _local_now(tz_name).strftime("%H:%M")
 
     if payload == ID_CLOCK_IN:
-        await _write_clock_event(db, employee.id, "in", raw)
+        shift = await _find_shift_for_now(db, employee.id, tz_name)
+        await _write_clock_event(db, employee.id, "in", raw, shift_assignment_id=shift.id if shift else None)
         _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
         session.state = "main_menu"
     elif payload == ID_CLOCK_OUT:
+        shift = await _find_shift_for_now(db, employee.id, tz_name)
         summary = await _shift_summary(db, employee.id, tz_name, lang)
-        await _write_clock_event(db, employee.id, "out", raw)
+        await _write_clock_event(db, employee.id, "out", raw, shift_assignment_id=shift.id if shift else None)
         _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
         session.state = "main_menu"
     elif payload == ID_BREAK:
@@ -613,11 +660,13 @@ async def _handle_break(
     now_str = _local_now(tz_name).strftime("%H:%M")
 
     if payload == ID_BREAK_START:
-        await _write_clock_event(db, employee.id, "break_start", raw)
+        shift = await _find_shift_for_now(db, employee.id, tz_name)
+        await _write_clock_event(db, employee.id, "break_start", raw, shift_assignment_id=shift.id if shift else None)
         _send_text(to, _t(lang, "break_started", time=now_str))
         session.state = "main_menu"
     elif payload == ID_BREAK_END:
-        await _write_clock_event(db, employee.id, "break_end", raw)
+        shift = await _find_shift_for_now(db, employee.id, tz_name)
+        await _write_clock_event(db, employee.id, "break_end", raw, shift_assignment_id=shift.id if shift else None)
         _send_text(to, _t(lang, "break_ended", time=now_str))
         session.state = "main_menu"
     elif payload == ID_BACK:

@@ -34,6 +34,8 @@ class ShiftAssignment(Base):
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     start_min: Mapped[int] = mapped_column(Integer, nullable=False)
     end_min: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Set when a WhatsApp clock-in reminder has been sent for this shift.
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
