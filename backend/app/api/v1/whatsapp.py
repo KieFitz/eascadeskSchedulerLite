@@ -80,7 +80,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "not_registered": "Your number is not registered. Contact your manager.",
         "clocked_in": "Clocked in at {time}. Have a great shift, {name}!",
         "already_clocked_in": "You appear to already be clocked in since {time}. Did you mean to clock out? Reply *yes* or *no*.",
-        "clocked_out": "Clocked out at {time}. See you next time, {name}!",
+        "clocked_out": "Clocked out at {time}. See you next time, {name}!\n{summary}",
+        "shift_summary": "Shift: {worked} worked · Break: {break_time}",
+        "shift_no_summary": "",
         "not_clocked_in": "You don't appear to be clocked in. Would you like to clock in instead? Reply *yes* or *no*.",
         "break_started": "Break started at {time}. Enjoy!",
         "break_ended": "Break ended at {time}. Back to it!",
@@ -135,7 +137,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "not_registered": "Tu número no está registrado. Contacta con tu responsable.",
         "clocked_in": "Fichaje de entrada a las {time}. ¡Que tengas un buen turno, {name}!",
         "already_clocked_in": "Parece que ya fichaste entrada a las {time}. ¿Querías fichar salida? Responde *sí* o *no*.",
-        "clocked_out": "Fichaje de salida a las {time}. ¡Hasta pronto, {name}!",
+        "clocked_out": "Fichaje de salida a las {time}. ¡Hasta pronto, {name}!\n{summary}",
+        "shift_summary": "Turno: {worked} trabajado · Descanso: {break_time}",
+        "shift_no_summary": "",
         "not_clocked_in": "No parece que hayas fichado entrada. ¿Quieres fichar entrada ahora? Responde *sí* o *no*.",
         "break_started": "Descanso iniciado a las {time}. ¡Disfruta!",
         "break_ended": "Descanso terminado a las {time}. ¡De vuelta al trabajo!",
@@ -438,6 +442,54 @@ async def _last_clock_state(db, employee_id: str, tz_name: str | None) -> tuple[
     return ev.event_type, ev.event_at
 
 
+async def _shift_summary(db, employee_id: str, tz_name: str | None, lang: str) -> str:
+    """
+    Return a one-line summary of today's shift: worked time and break time.
+    Fetches all in/out/break_start/break_end events since local midnight.
+    Returns empty string if there is no clock-in event to base a summary on.
+    """
+    local_now = _local_now(tz_name)
+    today_start_utc = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.timezone.utc)
+
+    result = await db.execute(
+        select(ClockEvent)
+        .where(
+            ClockEvent.employee_id == employee_id,
+            ClockEvent.event_type.in_(["in", "out", "break_start", "break_end"]),
+            ClockEvent.event_at >= today_start_utc,
+        )
+        .order_by(ClockEvent.event_at)
+    )
+    events = result.scalars().all()
+
+    clock_in_at: datetime.datetime | None = None
+    break_start_at: datetime.datetime | None = None
+    total_break_secs = 0
+
+    for ev in events:
+        if ev.event_type == "in":
+            clock_in_at = ev.event_at
+        elif ev.event_type == "break_start":
+            break_start_at = ev.event_at
+        elif ev.event_type == "break_end" and break_start_at is not None:
+            total_break_secs += (ev.event_at - break_start_at).total_seconds()
+            break_start_at = None
+
+    if clock_in_at is None:
+        return _t(lang, "shift_no_summary")
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    gross_secs = (now_utc - clock_in_at).total_seconds()
+    worked_secs = max(0, gross_secs - total_break_secs)
+
+    def _fmt(secs: float) -> str:
+        h = int(secs // 3600)
+        m = int((secs % 3600) // 60)
+        return f"{h}h {m:02d}m"
+
+    return _t(lang, "shift_summary", worked=_fmt(worked_secs), break_time=_fmt(total_break_secs))
+
+
 # ── Feature handlers ──────────────────────────────────────────────────────────
 
 async def _handle_direct_clock(
@@ -472,8 +524,9 @@ async def _handle_direct_clock(
             _send_text(to, _t(lang, "not_clocked_in"))
             session.state = "confirm_clock_in"
         else:
+            summary = await _shift_summary(db, employee.id, tz_name, lang)
             await _write_clock_event(db, employee.id, "out", raw)
-            _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name))
+            _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
             session.state = "main_menu"
 
 
@@ -505,8 +558,9 @@ async def _handle_confirm(
 
     elif session.state == "confirm_clock_out":
         if is_yes:
+            summary = await _shift_summary(db, employee.id, tz_name, lang)
             await _write_clock_event(db, employee.id, "out", raw)
-            _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name))
+            _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
         elif is_no:
             _send_text(to, _t(lang, "cancelled"))
         else:
@@ -535,8 +589,9 @@ async def _handle_clock(
         _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
         session.state = "main_menu"
     elif payload == ID_CLOCK_OUT:
+        summary = await _shift_summary(db, employee.id, tz_name, lang)
         await _write_clock_event(db, employee.id, "out", raw)
-        _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name))
+        _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
         session.state = "main_menu"
     elif payload == ID_BREAK:
         _send_break_menu(to, lang)
