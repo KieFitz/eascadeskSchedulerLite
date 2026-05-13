@@ -134,6 +134,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "cancelled": "OK, no changes made.",
         "reminder_clockin": "⏰ Reminder: Your shift started at {time}. Please clock in.",
         "auto_clockout": "Your shift ended at {time}. No clock-out was recorded — shift end time has been used. Contact your manager if overtime applies.",
+        "edit_request": (
+            "⚠️ Your manager has proposed a correction to your {type} record:\n"
+            "• Was: {old}\n• Now: {new}\n"
+            "{reason_line}"
+            "Reply *yes* to approve or *no* to reject."
+        ),
+        "edit_approved": "✅ Time correction approved. Your record has been updated to {new}.",
+        "edit_rejected": "❌ Time correction rejected. Your original record remains unchanged.",
+        "edit_not_found": "This edit request has already been resolved or is no longer valid.",
     },
     "es": {
         "not_registered": "Tu número no está registrado. Contacta con tu responsable.",
@@ -193,6 +202,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "cancelled": "De acuerdo, sin cambios.",
         "reminder_clockin": "⏰ Recordatorio: Tu turno comenzó a las {time}. Por favor ficha entrada.",
         "auto_clockout": "Tu turno terminó a las {time}. No se registró salida — se ha usado la hora de fin del turno. Contacta con tu responsable si hay horas extra.",
+        "edit_request": (
+            "⚠️ Tu responsable ha propuesto una corrección en tu registro de {type}:\n"
+            "• Era: {old}\n• Ahora: {new}\n"
+            "{reason_line}"
+            "Responde *sí* para aprobar o *no* para rechazar."
+        ),
+        "edit_approved": "✅ Corrección aprobada. Tu registro se ha actualizado a las {new}.",
+        "edit_rejected": "❌ Corrección rechazada. Tu registro original permanece sin cambios.",
+        "edit_not_found": "Esta solicitud de corrección ya ha sido resuelta o ya no es válida.",
     },
 }
 
@@ -752,6 +770,51 @@ async def _handle_hours(
     session.state = "main_menu"
 
 
+# ── Edit approval handler ─────────────────────────────────────────────────────
+
+async def _handle_edit_confirm(
+    body_lower: str,
+    state: str,
+    session: "WhatsAppSession",
+    to: str,
+    lang: str,
+    db: "AsyncSession",
+) -> None:
+    """Handle yes/no reply to a manager's proposed edit."""
+    import httpx as _httpx
+    from app.core.config import settings as _settings
+
+    token = state.removeprefix("edit_confirm_")
+    is_yes = body_lower in ("yes", "sí", "si", "y", "s")
+    is_no  = body_lower in ("no", "n")
+
+    if not is_yes and not is_no:
+        _send_text(to, "Please reply *yes* to approve or *no* to reject the time correction.")
+        return
+
+    # Call the internal resolve endpoint
+    try:
+        async with _httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"http://localhost:{_settings.PORT if hasattr(_settings, 'PORT') else 8000}"
+                f"/api/v1/clock/events/edit-confirm/{token}",
+                params={"approved": "true" if is_yes else "false"},
+                timeout=10,
+            )
+        resolved_status = resp.json().get("status", "unknown") if resp.status_code == 200 else None
+    except Exception:
+        resolved_status = None
+
+    if resolved_status == "approved":
+        _send_text(to, STRINGS[lang].get("edit_approved", "✅ Time correction approved."))
+    elif resolved_status == "rejected":
+        _send_text(to, STRINGS[lang].get("edit_rejected", "❌ Time correction rejected."))
+    else:
+        _send_text(to, STRINGS[lang].get("edit_not_found", "This request has already been resolved."))
+
+    session.state = "main_menu"
+
+
 # ── Main webhook ──────────────────────────────────────────────────────────────
 
 @router.post("/webhook")
@@ -799,6 +862,9 @@ async def whatsapp_webhook(request: Request) -> Response:
         # ── Confirmation states (yes/no responses) ────────────────────────────
         if state in ("confirm_clock_in", "confirm_clock_out"):
             await _handle_confirm(body_lower, db, employee, session, form_dict, from_field, tz_name)
+
+        elif state.startswith("edit_confirm_"):
+            await _handle_edit_confirm(body_lower, state, session, from_field, lang, db)
 
         # ── Direct shortcuts — bypass menus regardless of state ───────────────
         elif effective in (ID_CLOCK_IN, ID_CLOCK_OUT):

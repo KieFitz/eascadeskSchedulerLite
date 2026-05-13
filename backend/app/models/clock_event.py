@@ -53,6 +53,45 @@ class ClockEvent(Base):
     delete_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class ClockEventEditRequest(Base):
+    """A manager-proposed correction to a clock event's timestamp.
+
+    The event is not changed until the employee approves via WhatsApp.
+    The request remains pending indefinitely until the employee responds.
+    """
+    __tablename__ = "clock_event_edit_requests"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    clock_event_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("clock_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # The new time the manager wants to set
+    proposed_event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # One-time token sent to employee for WhatsApp confirmation
+    approval_token: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), unique=True, default=lambda: str(uuid.uuid4()), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        Enum("pending", "approved", "rejected", "cancelled", name="edit_request_status_enum"),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+    requested_by_user_id: Mapped[str | None] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ClockEventAuditLog(Base):
     """Immutable record of every create, edit, or delete on a clock event.
 

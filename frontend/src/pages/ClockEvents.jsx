@@ -3,6 +3,7 @@ import {
   ArrowDownTrayIcon,
   ClockIcon,
   EyeIcon,
+  PencilSquareIcon,
   PlusIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline'
@@ -20,6 +21,7 @@ import {
   deleteClockEvent,
   getClockEventAudit,
   exportClockEventsCsv,
+  requestClockEventEdit,
 } from '../api/clock'
 import { listEmployees } from '../api/employees'
 
@@ -57,6 +59,11 @@ export default function ClockEvents() {
   const [deleteTarget, setDeleteTarget]   = useState(null)  // { id, label }
   const [deleteReason, setDeleteReason]   = useState('')
   const [deleting, setDeleting]           = useState(false)
+
+  // Edit request modal
+  const [editTarget, setEditTarget]       = useState(null)  // { id, label, currentEventAt }
+  const [editForm, setEditForm]           = useState({ proposedEventAt: '', reason: '' })
+  const [editSaving, setEditSaving]       = useState(false)
 
   // Audit trail panel
   const [auditEvent, setAuditEvent]   = useState(null)  // { id, label }
@@ -117,6 +124,31 @@ export default function ClockEvents() {
     setDeleteReason('')
   }
 
+  const openEditModal = (e) => {
+    // Pre-fill datetime-local input from existing event_at (strip Z, keep local form)
+    const localIso = new Date(e.event_at).toISOString().slice(0, 16)
+    setEditTarget({ id: e.id, label: `${e.employee_name} — ${EVENT_LABEL[e.event_type] ?? e.event_type} at ${formatDateTime(e.event_at)}` })
+    setEditForm({ proposedEventAt: localIso, reason: '' })
+  }
+
+  const handleEditSave = async () => {
+    if (!editTarget || !editForm.proposedEventAt) return
+    setEditSaving(true)
+    try {
+      await requestClockEventEdit(editTarget.id, {
+        proposedEventAt: new Date(editForm.proposedEventAt).toISOString(),
+        reason: editForm.reason || undefined,
+      })
+      setEditTarget(null)
+      await fetchEvents()
+      toast.success('Edit request sent — awaiting employee approval via WhatsApp')
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? 'Failed to send edit request')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
     setDeleting(true)
@@ -155,11 +187,11 @@ export default function ClockEvents() {
 
   const openAuditPanel = async (e) => {
     setAuditEvent({ id: e.id, label: `${e.employee_name} — ${EVENT_LABEL[e.event_type] ?? e.event_type} at ${formatDateTime(e.event_at)}` })
-    setAuditLog([])
+    setAuditLog({ audit_log: [], edit_requests: [] })
     setAuditLoading(true)
     try {
-      const log = await getClockEventAudit(e.id)
-      setAuditLog(log)
+      const data = await getClockEventAudit(e.id)
+      setAuditLog(data)
     } catch {
       toast.error('Failed to load audit trail')
     } finally {
@@ -292,6 +324,11 @@ export default function ClockEvents() {
                             Estimated
                           </Badge>
                         )}
+                        {e.pending_edit && (
+                          <Badge colour="purple" title={`Edit proposed: ${formatDateTime(e.pending_edit.proposed_event_at)}${e.pending_edit.reason ? ' — ' + e.pending_edit.reason : ''} · Awaiting employee approval`}>
+                            Pending edit
+                          </Badge>
+                        )}
                         {e.deleted_at && (
                           <Badge colour="red" title={`Deleted ${formatDateTime(e.deleted_at)}${e.delete_reason ? ': ' + e.delete_reason : ''}`}>
                             Deleted
@@ -308,6 +345,15 @@ export default function ClockEvents() {
                         >
                           <EyeIcon className="h-4 w-4" />
                         </button>
+                        {!e.deleted_at && (
+                          <button
+                            onClick={() => openEditModal(e)}
+                            className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
+                            title={e.pending_edit ? 'Replace pending edit request' : 'Propose time correction'}
+                          >
+                            <PencilSquareIcon className="h-4 w-4" />
+                          </button>
+                        )}
                         {!e.deleted_at && (
                           <button
                             onClick={() => openDeleteModal(e)}
@@ -428,39 +474,106 @@ export default function ClockEvents() {
         title="Audit trail"
       >
         {auditEvent && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
               {auditEvent.label}
             </p>
             {auditLoading ? (
               <div className="flex justify-center py-8"><Spinner /></div>
-            ) : auditLog.length === 0 ? (
-              <p className="text-sm text-muted text-center py-4">No audit entries found.</p>
             ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {auditLog.map((entry) => (
-                  <div key={entry.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <Badge colour={ACTION_COLOUR[entry.action] ?? 'gray'}>{entry.action}</Badge>
-                      <span className="text-xs text-muted">{formatDateTime(entry.created_at)}</span>
+              <>
+                {/* Audit log */}
+                <div>
+                  <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Change log</p>
+                  {auditLog.audit_log?.length === 0 ? (
+                    <p className="text-sm text-muted text-center py-2">No entries.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {auditLog.audit_log?.map((entry) => (
+                        <div key={entry.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <Badge colour={ACTION_COLOUR[entry.action] ?? 'gray'}>{entry.action}</Badge>
+                            <span className="text-xs text-muted">{formatDateTime(entry.created_at)}</span>
+                          </div>
+                          <p className="text-xs text-dark"><span className="font-medium">By:</span> {entry.actor_label}</p>
+                          {entry.reason && (
+                            <p className="text-xs text-muted mt-0.5"><span className="font-medium">Reason:</span> {entry.reason}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-xs text-dark">
-                      <span className="font-medium">By:</span> {entry.actor_label}
-                    </p>
-                    {entry.reason && (
-                      <p className="text-xs text-muted mt-0.5">
-                        <span className="font-medium">Reason:</span> {entry.reason}
-                      </p>
-                    )}
+                  )}
+                </div>
+
+                {/* Edit requests */}
+                {auditLog.edit_requests?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Edit requests</p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {auditLog.edit_requests.map((req) => (
+                        <div key={req.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <Badge colour={req.status === 'approved' ? 'teal' : req.status === 'rejected' ? 'red' : req.status === 'cancelled' ? 'gray' : 'purple'}>
+                              {req.status}
+                            </Badge>
+                            <span className="text-xs text-muted">{formatDateTime(req.created_at)}</span>
+                          </div>
+                          <p className="text-xs text-dark"><span className="font-medium">Proposed:</span> {formatDateTime(req.proposed_event_at)}</p>
+                          {req.reason && <p className="text-xs text-muted mt-0.5"><span className="font-medium">Reason:</span> {req.reason}</p>}
+                          {req.resolved_at && <p className="text-xs text-muted mt-0.5"><span className="font-medium">Resolved:</span> {formatDateTime(req.resolved_at)}</p>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
             <div className="flex justify-end pt-1">
               <Button variant="ghost" onClick={() => setAuditEvent(null)}>Close</Button>
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Edit request modal */}
+      <Modal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        title="Propose time correction"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-dark">
+            The employee will receive a WhatsApp message asking them to approve or reject this correction.
+            The original time is unchanged until they approve.
+          </p>
+          {editTarget && (
+            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
+              {editTarget.label}
+            </p>
+          )}
+          <Input
+            label="Corrected date & time"
+            type="datetime-local"
+            value={editForm.proposedEventAt}
+            onChange={(e) => setEditForm({ ...editForm, proposedEventAt: e.target.value })}
+          />
+          <Input
+            label="Reason for correction (recommended)"
+            value={editForm.reason}
+            onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+            placeholder="e.g. Employee forgot to clock in, was on site from 09:00"
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button
+              onClick={handleEditSave}
+              loading={editSaving}
+              disabled={!editForm.proposedEventAt}
+            >
+              Send for approval
+            </Button>
+          </div>
+        </div>
       </Modal>
     </Layout>
   )

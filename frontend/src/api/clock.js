@@ -29,6 +29,13 @@ export async function getClockEventAudit(eventId) {
   return data
 }
 
+export async function requestClockEventEdit(eventId, { proposedEventAt, reason } = {}) {
+  const params = { proposed_event_at: proposedEventAt }
+  if (reason) params.reason = reason
+  const { data } = await client.patch(`/clock/events/${eventId}`, null, { params })
+  return data
+}
+
 export async function exportClockEventsCsv({ employeeId, dateFrom, dateTo, includeDeleted } = {}) {
   const params = {}
   if (employeeId)     params.employee_id     = employeeId

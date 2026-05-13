@@ -8,9 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db, require_pro_plan
-from app.models.clock_event import ClockEvent, ClockEventAuditLog
+from app.models.clock_event import ClockEvent, ClockEventAuditLog, ClockEventEditRequest
 from app.models.employee import Employee
 from app.models.user import User
+from app.models.whatsapp_session import WhatsAppSession
 
 router = APIRouter(prefix="/clock", tags=["clock"])
 
@@ -68,7 +69,17 @@ async def _build_emp_map(db: AsyncSession, user_id: str):
     return emp_ids, emp_map
 
 
-def _serialize_event(e: ClockEvent, emp_map: dict) -> dict:
+async def _pending_edit_for(db: AsyncSession, event_id: str) -> ClockEventEditRequest | None:
+    result = await db.execute(
+        select(ClockEventEditRequest).where(
+            ClockEventEditRequest.clock_event_id == event_id,
+            ClockEventEditRequest.status == "pending",
+        ).order_by(ClockEventEditRequest.created_at.desc()).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+def _serialize_event(e: ClockEvent, emp_map: dict, pending_edit: ClockEventEditRequest | None = None) -> dict:
     return {
         "id":                  e.id,
         "employee_id":         e.employee_id,
@@ -82,7 +93,53 @@ def _serialize_event(e: ClockEvent, emp_map: dict) -> dict:
         "created_at":          e.created_at.isoformat(),
         "deleted_at":          e.deleted_at.isoformat() if e.deleted_at else None,
         "delete_reason":       e.delete_reason,
+        "pending_edit":        {
+            "id":                  pending_edit.id,
+            "proposed_event_at":   pending_edit.proposed_event_at.isoformat(),
+            "reason":              pending_edit.reason,
+            "created_at":          pending_edit.created_at.isoformat(),
+        } if pending_edit else None,
     }
+
+
+async def _send_edit_whatsapp(employee: Employee, event: ClockEvent, edit_req: ClockEventEditRequest, db: AsyncSession) -> None:
+    """Send the employee a WhatsApp message asking them to approve the edit."""
+    from app.api.v1.whatsapp import STRINGS, _send_text, _to_local, _tz
+    from app.models.user import User as UserModel
+
+    user = await db.get(UserModel, employee.user_id)
+    tz_name = user.timezone if user else None
+
+    sess_result = await db.execute(
+        select(WhatsAppSession).where(WhatsAppSession.employee_id == employee.id)
+    )
+    wa_session = sess_result.scalar_one_or_none()
+    lang = wa_session.language if wa_session else "en"
+
+    old_time = _to_local(event.event_at, tz_name).strftime("%H:%M %d/%m/%Y")
+    new_time = _to_local(edit_req.proposed_event_at, tz_name).strftime("%H:%M %d/%m/%Y")
+    event_label = STRINGS[lang].get(f"opt_clock_{event.event_type}", event.event_type)
+
+    strings = STRINGS[lang]
+    msg = strings.get("edit_request", (
+        "⚠️ Your manager has proposed a correction to your {type} record:\n"
+        "• Was: {old}\n• Now: {new}\n"
+        "{reason_line}"
+        "Reply *yes* to approve or *no* to reject."
+    )).format(
+        type=event_label,
+        old=old_time,
+        new=new_time,
+        reason_line=f"Reason: {edit_req.reason}\n" if edit_req.reason else "",
+    )
+
+    # Store the approval token on the session so the bot can resolve it on next message
+    if wa_session:
+        wa_session.state = f"edit_confirm_{edit_req.approval_token}"
+        await db.flush()
+
+    to = f"whatsapp:{employee.phone}"
+    _send_text(to, msg)
 
 
 @router.get("/events")
@@ -94,9 +151,7 @@ async def list_clock_events(
     current_user: User = Depends(require_pro_plan),
     db: AsyncSession = Depends(get_db),
 ):
-    """List clock events for all employees belonging to the current user.
-    Optionally filter by employee or date range. Deleted events hidden by default.
-    """
+    """List clock events. Deleted events hidden by default."""
     emp_ids, emp_map = await _build_emp_map(db, current_user.id)
 
     if not emp_ids:
@@ -127,7 +182,11 @@ async def list_clock_events(
     result = await db.execute(query)
     events = result.scalars().all()
 
-    return [_serialize_event(e, emp_map) for e in events]
+    rows = []
+    for e in events:
+        pending = await _pending_edit_for(db, e.id)
+        rows.append(_serialize_event(e, emp_map, pending))
+    return rows
 
 
 @router.get("/events/export.csv")
@@ -139,7 +198,7 @@ async def export_clock_events_csv(
     current_user: User = Depends(require_pro_plan),
     db: AsyncSession = Depends(get_db),
 ):
-    """Download all clock events as a CSV file. Includes deleted events when include_deleted=true."""
+    """Download all clock events as a CSV file."""
     events = await list_clock_events(
         employee_id=employee_id,
         date_from=date_from,
@@ -155,22 +214,23 @@ async def export_clock_events_csv(
         fieldnames=[
             "id", "employee_name", "employee_phone",
             "event_type", "event_at", "source", "is_estimated", "shift_assignment_id",
-            "deleted_at", "delete_reason",
+            "deleted_at", "delete_reason", "pending_edit_proposed_at",
         ],
     )
     writer.writeheader()
     for e in events:
         writer.writerow({
-            "id":                  e["id"],
-            "employee_name":       e["employee_name"],
-            "employee_phone":      e["employee_phone"],
-            "event_type":          e["event_type"],
-            "event_at":            e["event_at"],
-            "source":              e["source"],
-            "is_estimated":        e["is_estimated"],
-            "shift_assignment_id": e["shift_assignment_id"] or "",
-            "deleted_at":          e["deleted_at"] or "",
-            "delete_reason":       e["delete_reason"] or "",
+            "id":                       e["id"],
+            "employee_name":            e["employee_name"],
+            "employee_phone":           e["employee_phone"],
+            "event_type":               e["event_type"],
+            "event_at":                 e["event_at"],
+            "source":                   e["source"],
+            "is_estimated":             e["is_estimated"],
+            "shift_assignment_id":      e["shift_assignment_id"] or "",
+            "deleted_at":               e["deleted_at"] or "",
+            "delete_reason":            e["delete_reason"] or "",
+            "pending_edit_proposed_at": e["pending_edit"]["proposed_event_at"] if e["pending_edit"] else "",
         })
 
     output.seek(0)
@@ -203,17 +263,37 @@ async def get_clock_event_audit(
     )
     logs = log_result.scalars().all()
 
-    return [
-        {
-            "id":             l.id,
-            "action":         l.action,
-            "actor_label":    l.actor_label,
-            "reason":         l.reason,
-            "snapshot":       l.snapshot,
-            "created_at":     l.created_at.isoformat(),
-        }
-        for l in logs
-    ]
+    edit_result = await db.execute(
+        select(ClockEventEditRequest)
+        .where(ClockEventEditRequest.clock_event_id == event_id)
+        .order_by(ClockEventEditRequest.created_at.asc())
+    )
+    edits = edit_result.scalars().all()
+
+    return {
+        "audit_log": [
+            {
+                "id":          l.id,
+                "action":      l.action,
+                "actor_label": l.actor_label,
+                "reason":      l.reason,
+                "snapshot":    l.snapshot,
+                "created_at":  l.created_at.isoformat(),
+            }
+            for l in logs
+        ],
+        "edit_requests": [
+            {
+                "id":                 r.id,
+                "proposed_event_at":  r.proposed_event_at.isoformat(),
+                "status":             r.status,
+                "reason":             r.reason,
+                "created_at":         r.created_at.isoformat(),
+                "resolved_at":        r.resolved_at.isoformat() if r.resolved_at else None,
+            }
+            for r in edits
+        ],
+    }
 
 
 @router.post("/events", status_code=status.HTTP_201_CREATED)
@@ -234,7 +314,7 @@ async def create_clock_event_manual(
         source="manual",
     )
     db.add(event)
-    await db.flush()  # get event.id before audit insert
+    await db.flush()
 
     await _write_audit(
         db,
@@ -248,12 +328,119 @@ async def create_clock_event_manual(
     await db.commit()
     await db.refresh(event)
     return {
-        "id":         event.id,
+        "id":          event.id,
         "employee_id": event.employee_id,
-        "event_type": event.event_type,
-        "event_at":   event.event_at.isoformat(),
-        "source":     event.source,
+        "event_type":  event.event_type,
+        "event_at":    event.event_at.isoformat(),
+        "source":      event.source,
     }
+
+
+@router.patch("/events/{event_id}")
+async def request_clock_event_edit(
+    event_id: str,
+    proposed_event_at: datetime = Query(...),
+    reason: str | None = Query(default=None),
+    current_user: User = Depends(require_pro_plan),
+    db: AsyncSession = Depends(get_db),
+):
+    """Propose a time correction for a clock event.
+
+    Creates a ClockEventEditRequest with status=pending and sends the employee
+    a WhatsApp message asking them to approve or reject the change.
+    The original event_at is unchanged until the employee approves.
+    """
+    emp_ids, emp_map = await _build_emp_map(db, current_user.id)
+
+    result = await db.execute(select(ClockEvent).where(ClockEvent.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event or event.employee_id not in emp_ids:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if event.deleted_at is not None:
+        raise HTTPException(status_code=409, detail="Cannot edit a deleted event")
+
+    # Cancel any existing pending request for this event before creating a new one
+    existing = await _pending_edit_for(db, event_id)
+    if existing:
+        existing.status = "cancelled"
+        existing.resolved_at = datetime.now(timezone.utc)
+
+    edit_req = ClockEventEditRequest(
+        clock_event_id=event_id,
+        proposed_event_at=proposed_event_at,
+        reason=reason,
+        requested_by_user_id=current_user.id,
+    )
+    db.add(edit_req)
+    await db.flush()
+
+    await _write_audit(
+        db,
+        clock_event_id=event_id,
+        action="edit",
+        actor_user=current_user,
+        reason=f"Edit requested — proposed time: {proposed_event_at.isoformat()}" + (f" | {reason}" if reason else ""),
+        snapshot={**_event_snapshot(event), "proposed_event_at": proposed_event_at.isoformat()},
+    )
+
+    # Load employee to send WhatsApp message
+    emp_result = await db.execute(select(Employee).where(Employee.id == event.employee_id))
+    employee = emp_result.scalar_one_or_none()
+    if employee and employee.phone:
+        await _send_edit_whatsapp(employee, event, edit_req, db)
+
+    await db.commit()
+
+    return {
+        "edit_request_id":   edit_req.id,
+        "status":            "pending",
+        "proposed_event_at": proposed_event_at.isoformat(),
+    }
+
+
+@router.post("/events/edit-confirm/{token}", status_code=status.HTTP_200_OK)
+async def resolve_clock_event_edit(
+    token: str,
+    approved: bool = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve an edit request — called by the WhatsApp webhook when employee replies yes/no.
+
+    This endpoint is internal (called server-side from whatsapp.py), not directly by
+    the browser, so it has no JWT auth — the token itself is the credential.
+    """
+    result = await db.execute(
+        select(ClockEventEditRequest).where(
+            ClockEventEditRequest.approval_token == token,
+            ClockEventEditRequest.status == "pending",
+        )
+    )
+    edit_req = result.scalar_one_or_none()
+    if not edit_req:
+        raise HTTPException(status_code=404, detail="Edit request not found or already resolved")
+
+    now = datetime.now(timezone.utc)
+    edit_req.status = "approved" if approved else "rejected"
+    edit_req.resolved_at = now
+
+    event_result = await db.execute(select(ClockEvent).where(ClockEvent.id == edit_req.clock_event_id))
+    event = event_result.scalar_one_or_none()
+
+    if approved and event:
+        old_snapshot = _event_snapshot(event)
+        event.event_at = edit_req.proposed_event_at
+        event.source = "manual"  # mark as manually corrected
+        await _write_audit(
+            db,
+            clock_event_id=event.id,
+            action="edit",
+            actor_user=None,
+            reason=f"Employee approved edit via WhatsApp. Original: {old_snapshot['event_at']}",
+            snapshot={**old_snapshot, "new_event_at": edit_req.proposed_event_at.isoformat()},
+        )
+
+    await db.commit()
+    return {"status": edit_req.status}
 
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -263,11 +450,7 @@ async def delete_clock_event(
     current_user: User = Depends(require_pro_plan),
     db: AsyncSession = Depends(get_db),
 ):
-    """Soft-delete a clock event (manager correction).
-
-    The row is retained for compliance; deleted_at is stamped with now() and
-    the deleting manager's user ID is recorded. An audit log entry is written.
-    """
+    """Soft-delete a clock event. Row kept for compliance; audit log entry written."""
     emp_ids, _ = await _build_emp_map(db, current_user.id)
 
     result = await db.execute(select(ClockEvent).where(ClockEvent.id == event_id))
@@ -276,6 +459,12 @@ async def delete_clock_event(
         raise HTTPException(status_code=404, detail="Event not found")
     if event.deleted_at is not None:
         raise HTTPException(status_code=409, detail="Event already deleted")
+
+    # Cancel any pending edit request on deletion
+    pending = await _pending_edit_for(db, event_id)
+    if pending:
+        pending.status = "cancelled"
+        pending.resolved_at = datetime.now(timezone.utc)
 
     event.deleted_at = datetime.now(timezone.utc)
     event.deleted_by_user_id = current_user.id
