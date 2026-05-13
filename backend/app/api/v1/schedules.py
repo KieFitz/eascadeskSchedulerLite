@@ -6,9 +6,11 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
+from app.models.availability import EmployeeAvailability
+from app.models.employee import Employee as EmployeeModel
 from app.models.schedule import ScheduleRun
 from app.models.user import User
-from app.schemas.schedule import AssignmentUpdateRequest, ScheduleRunOut, SubstituteRequest, ValidateRequest
+from app.schemas.schedule import AssignmentUpdateRequest, BuilderRequest, ScheduleRunOut, SubstituteRequest, ValidateRequest
 from app.services.plan_limits import FREE_MONTHLY_SOLVES
 
 router = APIRouter(prefix="/schedules", tags=["schedules"])
@@ -142,6 +144,117 @@ async def list_schedules(
         .offset(offset)
     )
     return result.scalars().all()
+
+
+_AVAIL_DOW_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_AVAIL_RECURRENCE_DAYS: dict[str, list[int]] = {
+    "weekdays":  [0, 1, 2, 3, 4],
+    "weekends":  [5, 6],
+    "every_day": [0, 1, 2, 3, 4, 5, 6],
+}
+
+
+def _builder_expand_rule(r) -> list[dict]:
+    start = f"{r.start_min // 60:02d}:{r.start_min % 60:02d}"
+    end   = f"{r.end_min   // 60:02d}:{r.end_min   % 60:02d}"
+    if r.recurrence != "none":
+        return [
+            {"day": _AVAIL_DOW_NAMES[i], "start": start, "end": end}
+            for i in _AVAIL_RECURRENCE_DAYS[r.recurrence]
+        ]
+    if r.specific_date is not None:
+        day_str = r.specific_date.isoformat()
+    else:
+        day_str = _AVAIL_DOW_NAMES[r.day_of_week]
+    return [{"day": day_str, "start": start, "end": end}]
+
+
+@router.post("/builder", response_model=ScheduleRunOut, status_code=201)
+async def create_builder_schedule(
+    body: BuilderRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a blank ScheduleRun via the UI builder (no Excel required).
+
+    For Pro users: automatically loads all active employees from the DB,
+    including their availability spans, so the Gantt shows preferences
+    immediately and the solver respects them on Auto-schedule.
+
+    Assignments always start empty — the solver fills them in.
+    """
+    if current_user.plan == "paid":
+        # Load all active employees
+        emp_result = await db.execute(
+            select(EmployeeModel).where(
+                EmployeeModel.user_id == current_user.id,
+                EmployeeModel.is_active.is_(True),
+            )
+        )
+        db_emps = emp_result.scalars().all()
+
+        # Load all availability rows for these employees
+        if db_emps:
+            emp_ids = [e.id for e in db_emps]
+            avail_result = await db.execute(
+                select(EmployeeAvailability).where(
+                    EmployeeAvailability.employee_id.in_(emp_ids)
+                )
+            )
+            avail_rows = avail_result.scalars().all()
+        else:
+            avail_rows = []
+
+        avail_by_emp: dict[str, list] = {}
+        for row in avail_rows:
+            avail_by_emp.setdefault(str(row.employee_id), []).append(row)
+
+        employees_data = []
+        for e in db_emps:
+            rules = avail_by_emp.get(str(e.id), [])
+            unavailable_spans, preferred_spans, unpreferred_spans = [], [], []
+            for r in rules:
+                spans = _builder_expand_rule(r)
+                if r.type == "unavailable":
+                    unavailable_spans.extend(spans)
+                elif r.type == "preferred":
+                    preferred_spans.extend(spans)
+                else:
+                    unpreferred_spans.extend(spans)
+
+            employees_data.append({
+                "id":               str(e.id),
+                "name":             e.name,
+                "skills":           e.skills or [],
+                "min_hours_week":   e.min_hours_week or 0,
+                "cost_per_hour":    float(e.cost_per_hour or 0),
+                "preferred_spans":  preferred_spans,
+                "unpreferred_spans": unpreferred_spans,
+                "unavailable_spans": unavailable_spans,
+            })
+    else:
+        # Free users: start with empty employee list
+        # (they can add employees via the manual entry flow or Excel upload)
+        employees_data = []
+
+    shifts_data = list(body.shifts) if body.shifts else []
+
+    run = ScheduleRun(
+        user_id=current_user.id,
+        status="completed",
+        year=body.date_from.year,
+        month=body.date_from.month,
+        name=body.name,
+        date_from=body.date_from,
+        date_to=body.date_to,
+        employees_data=employees_data,
+        shifts_data=shifts_data,
+        result_data={"assignments": []},
+    )
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    return run
 
 
 @router.get("/{run_id}", response_model=ScheduleRunOut)

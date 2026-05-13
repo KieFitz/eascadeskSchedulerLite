@@ -269,6 +269,13 @@ export default function ScheduleEditor() {
     setHasUnsavedEdits(true)
   }, [employees])
 
+  const handleEditShiftType = useCallback((shiftIds, patch) => {
+    const idSet = new Set(shiftIds)
+    setShifts((prev) => prev.map((s) => idSet.has(s.id) ? { ...s, ...patch } : s))
+    setAssignments((prev) => prev.map((a) => idSet.has(a.shift_id) ? { ...a, ...patch } : a))
+    setHasUnsavedEdits(true)
+  }, [])
+
   // ── Persist edits ─────────────────────────────────────────────────────────
   const persistEdits = async (silent = false) => {
     if (!runId) return
@@ -487,16 +494,19 @@ export default function ScheduleEditor() {
         {/* Solving banner — shown above the Gantt while optimising */}
         {solving && <SolvingBanner />}
 
-        {/* Gantt — always rendered when data exists; read-only while solving */}
-        {employees.length > 0 && shifts.length > 0 ? (
+        {/* Gantt — render whenever we have employees (shifts can be empty for builder schedules) */}
+        {employees.length > 0 ? (
           <ScheduleGantt
             employees={employees}
             shifts={shifts}
             assignments={assignments}
             violations={violations}
+            dateFrom={run?.date_from}
+            dateTo={run?.date_to}
             onReassign={handleReassign}
             onDeleteShift={handleDeleteShift}
             onCreateShift={handleCreateShift}
+            onEditShiftType={handleEditShiftType}
             onFindSubstitutes={handleFindSubstitutes}
             editable={!solving}
           />

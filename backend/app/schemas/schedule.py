@@ -57,3 +57,15 @@ class SubstituteRequest(BaseModel):
     assignments: list[dict] | None = None
     employees: list[dict] | None = None
     shifts: list[dict] | None = None
+
+
+class BuilderRequest(BaseModel):
+    """Body for POST /schedules/builder — create a blank schedule via the UI builder."""
+    name: str | None = None
+    date_from: date
+    date_to: date
+    # Each dict: {id, name, skills, min_hours_week, cost_per_hour}
+    employees: list[dict]
+    # Optional shift definitions copied (dates rewritten) from a previous run.
+    # Assignments are NOT included — solver assigns employees fresh.
+    shifts: list[dict] | None = None

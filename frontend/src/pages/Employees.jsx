@@ -141,7 +141,11 @@ export default function Employees() {
       }
       setModalOpen(false)
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Save failed')
+      const detail = err?.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((d) => d.msg ?? String(d)).join(' · ')
+        : (detail ?? 'Save failed')
+      toast.error(msg)
     } finally {
       setSaving(false)
     }

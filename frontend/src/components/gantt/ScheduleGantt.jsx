@@ -6,11 +6,15 @@ import {
   ChevronRightIcon,
   CalendarDaysIcon,
   ListBulletIcon,
+  TableCellsIcon,
   PlusIcon,
   ExclamationTriangleIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline'
 import ShiftEditModal from './ShiftEditModal'
 import ShiftCreateModal from './ShiftCreateModal'
+import Modal from '../common/Modal'
+import Button from '../common/Button'
 
 // ── Portal tooltip ────────────────────────────────────────────────────────────
 function ShiftTooltip({ tip }) {
@@ -279,7 +283,8 @@ function ViewToggle({ view, onChange }) {
     <div className="flex rounded-lg border border-gray-200 overflow-hidden">
       {[
         { id: 'employee', Icon: CalendarDaysIcon, label: 'By Employee' },
-        { id: 'shift',    Icon: ListBulletIcon,   label: 'By Shift'    },
+        { id: 'coverage', Icon: TableCellsIcon,   label: 'By Shift'    },
+        { id: 'shift',    Icon: ListBulletIcon,   label: 'List'        },
       ].map(({ id, Icon, label }) => (
         <button key={id} onClick={() => onChange(id)}
           className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
@@ -295,11 +300,21 @@ function ViewToggle({ view, onChange }) {
 // ════════════════════════════════════════════════════════════════════════════
 // Employee view — horizontal Gantt with drag-and-drop
 // ════════════════════════════════════════════════════════════════════════════
+// Given a click event on a timeline cell, infer the nearest 15-min HH:MM snap
+function inferTimeFromClick(e) {
+  const rect = e.currentTarget.getBoundingClientRect()
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+  const totalMins = H_START * 60 + Math.round(pct * TOTAL_M / 15) * 15
+  const h = Math.floor(totalMins / 60) % 24
+  const m = totalMins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
 function EmployeeView({
   employees, visibleDates, assignMap, unassignedMap,
   empTotalHoursMap,
   editable, violations,
-  onReassign, onClickEditShift, onClickCreateShift,
+  onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate,
   onTipShow, onTipHide,
 }) {
   const draggedShiftId = useRef(null)
@@ -349,6 +364,67 @@ function EmployeeView({
           ))}
         </div>
 
+        {/* Open shifts row — always visible when editable, at the top */}
+        {(editable || hasUnassigned) && (
+          <div
+            className={`grid border-b-2 ${editable && dragOverTarget === 'unassigned' ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200'}`}
+            style={gridStyle}
+            onDragOver={editable ? (e) => { e.preventDefault(); setDragOverTarget('unassigned') } : undefined}
+            onDragLeave={editable ? () => { if (dragOverTarget === 'unassigned') setDragOverTarget(null) } : undefined}
+            onDrop={editable ? (e) => { e.preventDefault(); handleDrop(null) } : undefined}
+          >
+            <div className="px-4 flex flex-col justify-center border-r border-amber-200" style={{ minHeight: ROW_H }}>
+              <p className="text-sm font-semibold text-amber-700">Open shifts</p>
+              {editable && <p className="text-[10px] text-amber-600/70">Click + to add</p>}
+            </div>
+            {visibleDates.map((d) => {
+              const slots = unassignedMap[d] ?? []
+              return (
+                <div
+                  key={d}
+                  className="border-r border-amber-100 flex flex-col gap-1 p-1.5 relative group"
+                  style={{ minHeight: ROW_H }}
+                  onDoubleClick={editable ? () => onClickCreateShift(d) : undefined}
+                >
+                  {slots.map((a) => {
+                    const hasViolation = (violations?.[a.shift_id]?.length ?? 0) > 0
+                    return (
+                      <button
+                        key={a.shift_id}
+                        onClick={editable ? (e) => { e.stopPropagation(); onClickEditShift(a) } : undefined}
+                        className={[
+                          'w-full text-left px-2 py-1 rounded text-[11px] font-medium truncate transition-colors',
+                          hasViolation ? 'ring-1 ring-red-400 ring-inset' : '',
+                          'bg-amber-100 text-amber-800 hover:bg-amber-200',
+                          editable ? 'cursor-pointer' : 'cursor-default',
+                        ].join(' ')}
+                        onMouseEnter={(e) => onTipShow(e, a)}
+                        onMouseLeave={onTipHide}
+                        title={`${a.start_time}–${a.end_time}`}
+                      >
+                        {hasViolation && <ExclamationTriangleIcon className="inline h-3 w-3 text-red-500 mr-0.5 -mt-0.5" />}
+                        {a.start_time}–{a.end_time}
+                        {a.required_skills?.length > 0 && (
+                          <span className="ml-1 opacity-70">· {a.required_skills.join(', ')}</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                  {editable && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onClickCreateShift(d) }}
+                      className="absolute top-1 right-1 p-0.5 rounded hover:bg-amber-200 text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title={`Add open shift on ${d}`}
+                    >
+                      <PlusIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
         {/* Employee rows */}
         {employees.map((emp) => {
           const isTarget = editable && dragOverTarget === emp.id
@@ -382,6 +458,7 @@ function EmployeeView({
                     onDragOver={editable ? (e) => { e.preventDefault(); setDragOverTarget(emp.id) } : undefined}
                     onDragLeave={editable ? () => { if (dragOverTarget === emp.id) setDragOverTarget(null) } : undefined}
                     onDrop={editable ? (e) => { e.preventDefault(); handleDrop(emp.id) } : undefined}
+                    onDoubleClick={editable ? (e) => onDblClickCreate(d, inferTimeFromClick(e)) : undefined}
                   >
                     <HourLabels />
                     {preferred.map((s, idx) => <SpanBar key={`p-${idx}`} span={s} kind="preferred" />)}
@@ -407,38 +484,6 @@ function EmployeeView({
           )
         })}
 
-        {/* Unassigned row */}
-        {hasUnassigned && (
-          <div
-            className={`grid border-t-2 ${editable && dragOverTarget === 'unassigned' ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200'}`}
-            style={gridStyle}
-            onDragOver={editable ? (e) => { e.preventDefault(); setDragOverTarget('unassigned') } : undefined}
-            onDragLeave={editable ? () => { if (dragOverTarget === 'unassigned') setDragOverTarget(null) } : undefined}
-            onDrop={editable ? (e) => { e.preventDefault(); handleDrop(null) } : undefined}
-          >
-            <div className="px-4 flex items-center border-r border-amber-200" style={{ height: ROW_H }}>
-              <p className="text-sm font-semibold text-amber-700">Unassigned</p>
-            </div>
-            {visibleDates.map((d) => (
-              <div key={d} className="border-r border-amber-100 relative overflow-hidden" style={{ height: ROW_H }}>
-                <HourLabels />
-                {unassignedMap[d]?.map((a) => (
-                  <ShiftBar
-                    key={a.shift_id}
-                    a={a}
-                    editable={editable}
-                    violations={violations}
-                    onClickEdit={onClickEditShift}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onMouseEnter={(e) => onTipShow(e, a)}
-                    onMouseLeave={onTipHide}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )
@@ -592,6 +637,302 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// Shift-type bulk-edit modal
+// ════════════════════════════════════════════════════════════════════════════
+function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDeleteAll, onReassignAll, onEditAll, onClose }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [empId,      setEmpId]      = useState('')
+  const [startTime,  setStartTime]  = useState(type.start_time)
+  const [endTime,    setEndTime]    = useState(type.end_time)
+  const [skills,     setSkills]     = useState(type.required_skills)
+  const [timeError,  setTimeError]  = useState('')
+
+  const count = allShiftsOfType.length
+  const timesChanged  = startTime !== type.start_time || endTime !== type.end_time
+  const skillsChanged = JSON.stringify([...skills].sort()) !== JSON.stringify([...type.required_skills].sort())
+  const hasChanges    = timesChanged || skillsChanged || !!empId
+
+  const toggleSkill = (s) =>
+    setSkills((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
+
+  const handleApply = () => {
+    if (startTime === endTime) { setTimeError('Start and end time must differ.'); return }
+    setTimeError('')
+    if (timesChanged || skillsChanged) onEditAll(startTime, endTime, skills)
+    if (empId) onReassignAll(empId === '__unassign__' ? null : empId)
+    onClose()
+  }
+
+  return (
+    <Modal open title="Edit all shifts of this type" onClose={onClose} size="sm">
+      <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-xs text-muted">
+        <p className="font-mono font-semibold text-dark text-sm">{type.label}</p>
+        <p>{count} shift{count !== 1 ? 's' : ''} across the schedule — all will be updated.</p>
+      </div>
+
+      {/* Times */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block mb-1 text-xs font-semibold text-dark">Start time</label>
+          <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+        </div>
+        <div>
+          <label className="block mb-1 text-xs font-semibold text-dark">End time</label>
+          <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+        </div>
+      </div>
+      {timeError && <p className="mb-3 text-xs text-red-600">{timeError}</p>}
+
+      {/* Skills */}
+      {allSkills.length > 0 && (
+        <div className="mb-4">
+          <label className="block mb-1.5 text-xs font-semibold text-dark">Required skills</label>
+          <div className="flex flex-wrap gap-1.5">
+            {allSkills.map((s) => (
+              <button key={s} type="button" onClick={() => toggleSkill(s)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  skills.includes(s) ? 'bg-brand-purple text-white border-brand-purple' : 'bg-white text-dark border-gray-200 hover:border-brand-purple'
+                }`}
+              >{s}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Assign all */}
+      <div className="mb-5">
+        <label className="block mb-1 text-xs font-semibold text-dark">Assign all to <span className="font-normal text-muted">(optional)</span></label>
+        <select value={empId} onChange={(e) => setEmpId(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
+        >
+          <option value="">— Leave as-is —</option>
+          <option value="__unassign__">Unassign all</option>
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.name}{emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => {
+            if (!confirmDelete) { setConfirmDelete(true); return }
+            onDeleteAll()
+            onClose()
+          }}
+          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+            confirmDelete ? 'bg-red-500 text-white hover:bg-red-600' : 'text-red-500 hover:bg-red-50 border border-red-200'
+          }`}
+        >
+          <TrashIcon className="h-3.5 w-3.5" />
+          {confirmDelete ? `Confirm delete ${count}` : 'Delete all'}
+        </button>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" disabled={!hasChanges} onClick={handleApply}>Apply to all</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Coverage view — grid: rows = shift types, columns = dates
+// ════════════════════════════════════════════════════════════════════════════
+function CoverageView({ employees, shifts, assignments, visibleDates, editable, violations, onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate, onClickEditShiftType, onCopyShiftType }) {
+  // Build the set of distinct shift types across the whole schedule (not just visible)
+  // A "type" is keyed by start_time + end_time + sorted skills
+  const shiftTypes = useMemo(() => {
+    const seen = new Map() // key → {start_time, end_time, required_skills, label}
+    for (const s of shifts) {
+      const skills = [...(s.required_skills ?? [])].sort()
+      const key = `${s.start_time}|${s.end_time}|${skills.join(',')}`
+      if (!seen.has(key)) {
+        seen.set(key, {
+          key,
+          start_time: s.start_time,
+          end_time:   s.end_time,
+          required_skills: skills,
+          label: `${s.start_time} – ${s.end_time}`,
+        })
+      }
+    }
+    return [...seen.values()].sort((a, b) =>
+      a.start_time.localeCompare(b.start_time) || a.end_time.localeCompare(b.end_time)
+    )
+  }, [shifts])
+
+  // Index: typeKey → date → [assignment]
+  const cellMap = useMemo(() => {
+    const m = {}
+    for (const t of shiftTypes) m[t.key] = {}
+    for (const a of assignments) {
+      const skills = [...(a.required_skills ?? [])].sort()
+      const key = `${a.start_time}|${a.end_time}|${skills.join(',')}`
+      if (!m[key]) continue
+      if (!m[key][a.date]) m[key][a.date] = []
+      m[key][a.date].push(a)
+    }
+    return m
+  }, [shiftTypes, assignments])
+
+  const COL_W = 120 // px per date column — keep compact
+
+  return (
+    <div className="overflow-x-auto scrollbar-thin">
+      <div style={{ minWidth: 200 + COL_W * visibleDates.length }}>
+        {/* Header row */}
+        <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+          <div className="flex-shrink-0 w-48 px-4 py-2 border-r border-gray-200 text-xs font-semibold text-muted flex items-center">
+            Shift type
+          </div>
+          {visibleDates.map((d) => (
+            <div
+              key={d}
+              className="flex-shrink-0 border-r border-gray-100 text-xs font-semibold text-dark text-center py-2 flex items-center justify-center gap-1"
+              style={{ width: COL_W }}
+            >
+              {format(parseISO(d), 'EEE d MMM')}
+              {editable && (
+                <button
+                  onClick={() => onClickCreateShift(d)}
+                  className="p-0.5 rounded hover:bg-brand-purple/10 text-brand-purple opacity-50 hover:opacity-100 transition-opacity"
+                  title={`Add shift on ${d}`}
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Open shifts row — always visible when editable, at the top */}
+        {editable && (
+          <div className="flex border-b-2 border-amber-200 bg-amber-50">
+            <div className="flex-shrink-0 w-48 px-4 py-2 border-r border-amber-200 flex flex-col justify-center" style={{ minHeight: 56 }}>
+              <p className="text-sm font-semibold text-amber-700">Open shifts</p>
+              <p className="text-[10px] text-amber-600/70">Click + to add</p>
+            </div>
+            {visibleDates.map((d) => (
+              <div
+                key={d}
+                className="flex-shrink-0 border-r border-amber-100 flex flex-col gap-1 p-1.5 items-center justify-center relative group"
+                style={{ width: COL_W, minHeight: 56 }}
+                onDoubleClick={() => onClickCreateShift(d)}
+              >
+                <button
+                  onClick={() => onClickCreateShift(d)}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  title={`Add open shift on ${d}`}
+                >
+                  <PlusIcon className="h-3 w-3" />
+                  Add
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {shiftTypes.length === 0 && editable && (
+          <div className="flex items-center gap-3 px-4 py-3 text-xs text-muted bg-gray-50/80 border-b border-gray-100">
+            <PlusIcon className="h-4 w-4 text-brand-purple/50 flex-shrink-0" />
+            <span>No shift types yet — use the <span className="font-semibold">Open shifts</span> row above or click <span className="font-semibold">+</span> on a date header to add your first shift.</span>
+          </div>
+        )}
+
+        {/* Shift type rows */}
+        {shiftTypes.map((type) => (
+          <div key={type.key} className="flex border-b border-gray-100 hover:bg-gray-50/40 transition-colors group/row">
+            {/* Row label — click to bulk-edit */}
+            <div
+              className={[
+                'flex-shrink-0 w-48 px-4 py-2 border-r border-gray-200 bg-white flex flex-col justify-center gap-1',
+                editable ? 'cursor-pointer hover:bg-brand-lavender-light/30' : '',
+              ].join(' ')}
+              style={{ minHeight: 56 }}
+              onClick={editable ? () => onClickEditShiftType(type) : undefined}
+              title={editable ? 'Click to edit all shifts of this type' : undefined}
+            >
+              <p className="text-xs font-mono font-semibold text-dark">{type.label}</p>
+              {type.required_skills.length > 0 ? (
+                <SkillChips skills={type.required_skills} />
+              ) : (
+                <span className="text-[10px] text-muted italic">any skills</span>
+              )}
+              {editable && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onCopyShiftType(type) }}
+                  className="mt-0.5 self-start flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] font-medium text-muted hover:text-brand-purple hover:border-brand-purple bg-white transition-colors opacity-0 group-hover/row:opacity-100 focus:opacity-100"
+                  title="Duplicate all shifts of this type (adds one more unassigned slot per date)"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                  Copy row
+                </button>
+              )}
+            </div>
+
+            {/* Date cells */}
+            {visibleDates.map((d) => {
+              const slots = cellMap[type.key]?.[d] ?? []
+              return (
+                <div
+                  key={d}
+                  className="flex-shrink-0 border-r border-gray-100 flex flex-col gap-1 p-1.5 items-start justify-start group relative"
+                  style={{ width: COL_W, minHeight: 56 }}
+                  onDoubleClick={editable ? () => onDblClickCreate(d, type.start_time, type.end_time) : undefined}
+                  title={editable ? 'Double-click to add a shift here' : undefined}
+                >
+                  {slots.map((a) => {
+                    const hasViolation = (violations?.[a.shift_id]?.length ?? 0) > 0
+                    return (
+                      <button
+                        key={a.shift_id}
+                        onClick={editable ? () => onClickEditShift(a) : undefined}
+                        className={[
+                          'w-full text-left px-2 py-1 rounded text-[11px] font-medium truncate transition-colors',
+                          hasViolation ? 'ring-1 ring-red-400 ring-inset' : '',
+                          a.employee_id
+                            ? a.source === 'SOLVER'
+                              ? 'bg-brand-teal/20 text-teal-800 hover:bg-brand-teal/30'
+                              : 'bg-brand-lavender-light text-brand-purple hover:bg-brand-purple/20'
+                            : 'bg-amber-100 text-amber-800 hover:bg-amber-200',
+                          editable ? 'cursor-pointer' : 'cursor-default',
+                        ].join(' ')}
+                      >
+                        {hasViolation && <ExclamationTriangleIcon className="inline h-3 w-3 text-red-500 mr-0.5 -mt-0.5" />}
+                        {a.employee_id ? a.employee_name : <span className="opacity-60 italic">Open</span>}
+                        {a.required_skills?.length > 0 && (
+                          <span className="ml-1 opacity-70">· {a.required_skills.join(', ')}</span>
+                        )}
+                      </button>
+                    )
+                  })}
+
+                  {/* Double-click hint on empty cells */}
+                  {editable && slots.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      <PlusIcon className="h-4 w-4 text-brand-purple/40" />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+
+      </div>
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Root export
 // ════════════════════════════════════════════════════════════════════════════
 export default function ScheduleGantt({
@@ -599,20 +940,35 @@ export default function ScheduleGantt({
   shifts,
   assignments,
   violations,           // { [shift_id]: [{rule, message, severity}] }
+  dateFrom,             // ISO string — schedule start (used when shifts is empty)
+  dateTo,               // ISO string — schedule end
   onReassign,           // (shiftId, empId | null) => void
   onDeleteShift,        // (shiftId) => void
   onCreateShift,        // (shiftData, empId | null) => void
+  onEditShiftType,      // (shiftIds, {start_time, end_time, required_skills}) => void
   onFindSubstitutes,    // async (shiftId) => [{employee_id, score, ...}]
   editable = false,
 }) {
-  const employeesArr  = employees  ?? []
-  const shiftsArr     = shifts     ?? []
+  const employeesArr   = employees   ?? []
+  const shiftsArr      = shifts      ?? []
   const assignmentsArr = assignments ?? []
 
-  const allDates = useMemo(
-    () => [...new Set(shiftsArr.map((s) => s.date))].sort(),
-    [shiftsArr]
-  )
+  // Derive the full date range: prefer shift dates, fall back to dateFrom/dateTo props
+  const allDates = useMemo(() => {
+    const fromShifts = [...new Set(shiftsArr.map((s) => s.date))].sort()
+    if (fromShifts.length > 0) return fromShifts
+    if (!dateFrom) return []
+    // Generate every date from dateFrom to dateTo
+    const result = []
+    const end = dateTo ?? dateFrom
+    const cur = new Date(dateFrom + 'T00:00:00')
+    const endDate = new Date(end + 'T00:00:00')
+    while (cur <= endDate) {
+      result.push(cur.toISOString().slice(0, 10))
+      cur.setDate(cur.getDate() + 1)
+    }
+    return result
+  }, [shiftsArr, dateFrom, dateTo])
 
   const [weekStart, setWeekStart] = useState(() => {
     const base = allDates[0] ? parseISO(allDates[0]) : new Date()
@@ -622,7 +978,9 @@ export default function ScheduleGantt({
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [editingAssignment, setEditingAssignment] = useState(null)
-  const [createDate, setCreateDate] = useState(null)
+  const [editingShiftType,  setEditingShiftType]  = useState(null) // { type, allShiftsOfType }
+  // { date, startTime?, endTime? }
+  const [createCtx, setCreateCtx] = useState(null)
 
   // ── Tooltip state ──────────────────────────────────────────────────────────
   const [tooltip, setTooltip] = useState(null) // { assignment, violations, x, y }
@@ -665,11 +1023,14 @@ export default function ScheduleGantt({
 
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
-  if (!employeesArr.length || !shiftsArr.length) return null
+  if (!employeesArr.length) return null
 
   // ── Handlers passed down to views ─────────────────────────────────────────
-  const handleClickEditShift = (assignment) => setEditingAssignment(assignment)
-  const handleClickCreateShift = (date) => setCreateDate(date)
+  const handleClickEditShift  = (assignment) => setEditingAssignment(assignment)
+  const handleClickCreateShift = (date) => setCreateCtx({ date })
+  // Double-click: date + optional pre-filled times from position / coverage row
+  const handleDblClickCreate  = (date, startTime, endTime) =>
+    setCreateCtx({ date, startTime, endTime })
 
   const handleEditSave = (shiftId, newEmpId) => {
     onReassign?.(shiftId, newEmpId || null)
@@ -681,7 +1042,58 @@ export default function ScheduleGantt({
   }
   const handleCreate = (shiftData, empId) => {
     onCreateShift?.(shiftData, empId)
-    setCreateDate(null)
+    setCreateCtx(null)
+  }
+
+  const allSkills = useMemo(() => {
+    const s = new Set()
+    for (const emp of employeesArr) for (const sk of emp.skills ?? []) s.add(sk)
+    return [...s].sort()
+  }, [employeesArr])
+
+  // Coverage — click row label: collect all assignments matching this shift type
+  const handleClickEditShiftType = (type) => {
+    const skills = [...(type.required_skills ?? [])].sort()
+    const typeKey = `${type.start_time}|${type.end_time}|${skills.join(',')}`
+    const allShiftsOfType = assignmentsArr.filter((a) => {
+      const aSkills = [...(a.required_skills ?? [])].sort()
+      return `${a.start_time}|${a.end_time}|${aSkills.join(',')}` === typeKey
+    })
+    setEditingShiftType({ type, allShiftsOfType })
+  }
+
+  // Coverage — copy row: for each date that already has ≥1 shift of this type, add one more
+  const handleCopyShiftType = (type) => {
+    const skills = [...(type.required_skills ?? [])].sort()
+    const typeKey = `${type.start_time}|${type.end_time}|${skills.join(',')}`
+    const datesWithType = [...new Set(
+      assignmentsArr
+        .filter((a) => {
+          const aSkills = [...(a.required_skills ?? [])].sort()
+          return `${a.start_time}|${a.end_time}|${aSkills.join(',')}` === typeKey
+        })
+        .map((a) => a.date)
+    )]
+    const running = [...shiftsArr]
+    for (const date of datesWithType) {
+      const baseId = `${date}_${type.start_time}`
+      const count = running.filter((s) => s.id?.startsWith(baseId)).length
+      const shift = {
+        id: `${baseId}_slot${count}`,
+        date,
+        start_time: type.start_time,
+        end_time:   type.end_time,
+        required_skills: type.required_skills,
+        slot_index: count,
+      }
+      onCreateShift?.(shift, null)
+      running.push(shift)
+    }
+  }
+
+  // Coverage — edit all: update times + skills on every shift of that type
+  const handleEditAllShiftType = (shiftIds, patch) => {
+    onEditShiftType?.(shiftIds, patch)
   }
 
   return (
@@ -702,7 +1114,7 @@ export default function ScheduleGantt({
         <ViewToggle view={view} onChange={setView} />
       </div>
 
-      {view === 'employee' ? (
+      {view === 'employee' && (
         <EmployeeView
           employees={employeesArr}
           visibleDates={visibleDates}
@@ -714,10 +1126,12 @@ export default function ScheduleGantt({
           onReassign={onReassign}
           onClickEditShift={handleClickEditShift}
           onClickCreateShift={handleClickCreateShift}
+          onDblClickCreate={handleDblClickCreate}
           onTipShow={handleTipShow}
           onTipHide={handleTipHide}
         />
-      ) : (
+      )}
+      {view === 'shift' && (
         <ShiftView
           employees={employeesArr}
           assignments={assignmentsArr}
@@ -727,6 +1141,22 @@ export default function ScheduleGantt({
           onReassign={onReassign}
           onClickEditShift={handleClickEditShift}
           onClickCreateShift={handleClickCreateShift}
+        />
+      )}
+      {view === 'coverage' && (
+        <CoverageView
+          employees={employeesArr}
+          shifts={shiftsArr}
+          assignments={assignmentsArr}
+          visibleDates={visibleDates}
+          editable={editable}
+          violations={violations}
+          onReassign={onReassign}
+          onClickEditShift={handleClickEditShift}
+          onClickCreateShift={handleClickCreateShift}
+          onDblClickCreate={handleDblClickCreate}
+          onClickEditShiftType={handleClickEditShiftType}
+          onCopyShiftType={handleCopyShiftType}
         />
       )}
 
@@ -763,7 +1193,10 @@ export default function ScheduleGantt({
           </span>
         )}
         {view === 'employee' && (
-          <span className="ml-auto">Showing {H_START}:00 – {H_END}:00{editable ? ' · Click or drag to edit' : ''}</span>
+          <span className="ml-auto">Showing {H_START}:00 – {H_END}:00{editable ? ' · Double-click to add · Drag to reassign' : ''}</span>
+        )}
+        {view === 'shift' && editable && (
+          <span className="ml-auto">Double-click any cell to add a shift</span>
         )}
       </div>
 
@@ -782,13 +1215,37 @@ export default function ScheduleGantt({
           onFindSubstitutes={onFindSubstitutes}
         />
       )}
-      {createDate && (
+      {editingShiftType && (
+        <ShiftTypeEditModal
+          type={editingShiftType.type}
+          allShiftsOfType={editingShiftType.allShiftsOfType}
+          allSkills={allSkills}
+          employees={employeesArr}
+          onDeleteAll={() => {
+            for (const a of editingShiftType.allShiftsOfType) onDeleteShift?.(a.shift_id)
+            setEditingShiftType(null)
+          }}
+          onReassignAll={(empId) => {
+            for (const a of editingShiftType.allShiftsOfType) onReassign?.(a.shift_id, empId)
+          }}
+          onEditAll={(startTime, endTime, skills) => {
+            const shiftIds = editingShiftType.allShiftsOfType.map((a) => a.shift_id)
+            handleEditAllShiftType(shiftIds, { start_time: startTime, end_time: endTime, required_skills: skills })
+          }}
+          onClose={() => setEditingShiftType(null)}
+        />
+      )}
+      {createCtx && (
         <ShiftCreateModal
-          date={createDate}
+          date={createCtx.date}
           employees={employeesArr}
           existingShifts={shiftsArr}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          initialStartTime={createCtx.startTime}
+          initialEndTime={createCtx.endTime}
           onCreate={handleCreate}
-          onClose={() => setCreateDate(null)}
+          onClose={() => setCreateCtx(null)}
         />
       )}
     </div>

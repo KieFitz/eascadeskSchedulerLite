@@ -4,6 +4,7 @@ import {
   ArrowUpTrayIcon,
   CalendarDaysIcon,
   DocumentArrowDownIcon,
+  PencilSquareIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline'
 import Layout from '../components/layout/Layout'
@@ -12,6 +13,7 @@ import Spinner from '../components/common/Spinner'
 import EmptyState from '../components/common/EmptyState'
 import ScheduleCard from '../components/schedules/ScheduleCard'
 import OvertimeReport from '../components/schedules/OvertimeReport'
+import BuilderSetupModal from '../components/schedules/BuilderSetupModal'
 import { deleteSchedule, downloadExport, downloadTemplate, listSchedules, renameSchedule, uploadExcel } from '../api/schedules'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -27,6 +29,7 @@ export default function ScheduleList() {
   const [dragging, setDragging]   = useState(false)
   const [file, setFile]           = useState(null)
   const [templateDownloading, setTemplateDownloading] = useState(false)
+  const [builderOpen, setBuilderOpen] = useState(false)
 
   // Poll for any runs currently in "processing" state
   const pollingRef = useRef(null)
@@ -142,13 +145,19 @@ export default function ScheduleList() {
           <div>
             <h2 className="font-semibold text-dark">New Schedule</h2>
             <p className="text-xs text-muted mt-0.5">
-              Upload an Excel file to create a new schedule period.
+              Upload an Excel file or build a schedule directly in the app.
             </p>
           </div>
-          <Button variant="primary" size="sm" onClick={handleTemplateDownload} loading={templateDownloading}>
-            <DocumentArrowDownIcon className="h-4 w-4" />
-            Download Template
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="secondary" size="sm" onClick={() => setBuilderOpen(true)}>
+              <PencilSquareIcon className="h-4 w-4" />
+              Build Schedule
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleTemplateDownload} loading={templateDownloading}>
+              <DocumentArrowDownIcon className="h-4 w-4" />
+              Download Template
+            </Button>
+          </div>
         </div>
         <div className="p-6">
           <div
@@ -252,6 +261,14 @@ export default function ScheduleList() {
           </div>
         </div>
       )}
+      <BuilderSetupModal
+        open={builderOpen}
+        onClose={() => setBuilderOpen(false)}
+        onCreated={(runId) => {
+          setBuilderOpen(false)
+          navigate(`/schedules/${runId}`)
+        }}
+      />
     </Layout>
   )
 }

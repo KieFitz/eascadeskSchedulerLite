@@ -101,6 +101,17 @@ export async function getSubstitutes(run_id, shift_id, { assignments, employees,
   return data.substitutes
 }
 
+export async function createBuilderSchedule({ name, date_from, date_to, employees, shifts }) {
+  const { data } = await client.post('/schedules/builder', {
+    name: name || null,
+    date_from,
+    date_to,
+    employees,
+    shifts: shifts || null,
+  })
+  return data
+}
+
 export async function downloadExport(run_id) {
   const response = await client.get(`/export/${run_id}`, { responseType: 'blob' })
   const url = window.URL.createObjectURL(new Blob([response.data]))
