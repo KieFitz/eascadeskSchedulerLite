@@ -120,7 +120,7 @@ const BAR_H   = 32
 const BAR_Y   = (ROW_H - BAR_H) / 2
 const EMP_W   = 164
 
-const DAYS_IN_VIEW = 7
+// DAYS_IN_VIEW is now dynamic — see daysInView state in ScheduleGantt
 
 // ── Time constants ────────────────────────────────────────────────────────────
 const H_START  = 0
@@ -180,8 +180,8 @@ function SpanBar({ span, kind }) {
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
-function HourLabels() {
-  const STEP_H = 6
+function HourLabels({ stepHours = 6 }) {
+  const STEP_H = stepHours
   const count = Math.floor((H_END - H_START) / STEP_H) + 1
   return (
     <>
@@ -257,14 +257,17 @@ function WeekNav({ weekStart, allDates, daysInView, onPrev, onNext, onToday }) {
   const endStr   = format(visibleEnd, 'yyyy-MM-dd')
   const hasPrev  = allDates.some((d) => d < startStr)
   const hasNext  = allDates.some((d) => d > endStr)
+  const label    = daysInView === 1
+    ? format(weekStart, 'EEEE, d MMM yyyy')
+    : `${format(weekStart, 'd MMM')} – ${format(visibleEnd, 'd MMM yyyy')}`
   return (
     <div className="flex items-center gap-1.5">
       <button onClick={onPrev} disabled={!hasPrev}
         className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
         <ChevronLeftIcon className="h-4 w-4 text-dark" />
       </button>
-      <span className="text-sm font-semibold text-dark min-w-[172px] text-center select-none">
-        {format(weekStart, 'd MMM')} – {format(visibleEnd, 'd MMM yyyy')}
+      <span className={`text-sm font-semibold text-dark text-center select-none ${daysInView === 1 ? 'min-w-[200px]' : 'min-w-[172px]'}`}>
+        {label}
       </span>
       <button onClick={onNext} disabled={!hasNext}
         className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
@@ -274,6 +277,23 @@ function WeekNav({ weekStart, allDates, daysInView, onPrev, onNext, onToday }) {
         className="ml-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-medium text-dark hover:bg-gray-50 transition-colors">
         Today
       </button>
+    </div>
+  )
+}
+
+function DayWeekToggle({ daysInView, onChange }) {
+  return (
+    <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+      {[
+        { days: 1, label: 'Day'  },
+        { days: 7, label: 'Week' },
+      ].map(({ days, label }) => (
+        <button key={days} onClick={() => onChange(days)}
+          className={['px-3 py-1.5 text-xs font-medium transition-colors',
+            daysInView === days ? 'bg-brand-purple text-white' : 'text-muted hover:bg-gray-50'].join(' ')}>
+          {label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -314,6 +334,7 @@ function EmployeeView({
   employees, visibleDates, assignMap, unassignedMap,
   empTotalHoursMap,
   editable, violations,
+  hourLabelStep,
   onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate,
   onTipShow, onTipHide,
 }) {
@@ -460,7 +481,7 @@ function EmployeeView({
                     onDrop={editable ? (e) => { e.preventDefault(); handleDrop(emp.id) } : undefined}
                     onDoubleClick={editable ? (e) => onDblClickCreate(d, inferTimeFromClick(e)) : undefined}
                   >
-                    <HourLabels />
+                    <HourLabels stepHours={hourLabelStep} />
                     {preferred.map((s, idx) => <SpanBar key={`p-${idx}`} span={s} kind="preferred" />)}
                     {unpreferred.map((s, idx) => <SpanBar key={`u-${idx}`} span={s} kind="unpreferred" />)}
                     {unavailable.map((s, idx) => <SpanBar key={`x-${idx}`} span={s} kind="unavailable" />)}
@@ -970,11 +991,12 @@ export default function ScheduleGantt({
     return result
   }, [shiftsArr, dateFrom, dateTo])
 
-  const [weekStart, setWeekStart] = useState(() => {
+  const [weekStart,  setWeekStart]  = useState(() => {
     const base = allDates[0] ? parseISO(allDates[0]) : new Date()
     return startOfWeek(base, { weekStartsOn: 1 })
   })
-  const [view, setView] = useState('employee')
+  const [view,       setView]       = useState('employee')
+  const [daysInView, setDaysInView] = useState(7)
 
   // ── Modal state ────────────────────────────────────────────────────────────
   const [editingAssignment, setEditingAssignment] = useState(null)
@@ -991,8 +1013,8 @@ export default function ScheduleGantt({
   const handleTipHide = () => setTooltip(null)
 
   const visibleDates = useMemo(
-    () => Array.from({ length: DAYS_IN_VIEW }, (_, i) => format(addDays(weekStart, i), 'yyyy-MM-dd')),
-    [weekStart]
+    () => Array.from({ length: daysInView }, (_, i) => format(addDays(weekStart, i), 'yyyy-MM-dd')),
+    [weekStart, daysInView]
   )
 
   const { assignMap, unassignedMap } = useMemo(() => {
@@ -1102,16 +1124,22 @@ export default function ScheduleGantt({
         <WeekNav
           weekStart={weekStart}
           allDates={allDates}
-          daysInView={DAYS_IN_VIEW}
-          onPrev={() => setWeekStart((w) => addDays(w, -DAYS_IN_VIEW))}
-          onNext={() => setWeekStart((w) => addDays(w, DAYS_IN_VIEW))}
+          daysInView={daysInView}
+          onPrev={() => setWeekStart((w) => addDays(w, -daysInView))}
+          onNext={() => setWeekStart((w) => addDays(w, daysInView))}
           onToday={() => {
             const target = allDates.includes(todayStr) ? todayStr : allDates[0]
             const base = target ? parseISO(target) : new Date()
-            setWeekStart(startOfWeek(base, { weekStartsOn: 1 }))
+            setWeekStart(daysInView === 1 ? base : startOfWeek(base, { weekStartsOn: 1 }))
           }}
         />
-        <ViewToggle view={view} onChange={setView} />
+        <div className="flex items-center gap-2">
+          <DayWeekToggle daysInView={daysInView} onChange={(d) => {
+            setDaysInView(d)
+            if (d === 7) setWeekStart((w) => startOfWeek(w, { weekStartsOn: 1 }))
+          }} />
+          <ViewToggle view={view} onChange={setView} />
+        </div>
       </div>
 
       {view === 'employee' && (
@@ -1123,6 +1151,7 @@ export default function ScheduleGantt({
           empTotalHoursMap={empTotalHoursMap}
           editable={editable}
           violations={violations}
+          hourLabelStep={daysInView === 1 ? 2 : 6}
           onReassign={onReassign}
           onClickEditShift={handleClickEditShift}
           onClickCreateShift={handleClickCreateShift}

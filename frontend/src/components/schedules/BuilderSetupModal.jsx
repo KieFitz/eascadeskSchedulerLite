@@ -5,18 +5,29 @@ import { createBuilderSchedule } from '../../api/schedules'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
 
+function toLocalISO(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function todayLocalISO() {
+  return toLocalISO(new Date())
+}
+
 function nextMonday(isoToday) {
   const d = new Date(isoToday + 'T00:00:00')
-  const day = d.getDay()
-  const diff = day === 1 ? 0 : day === 0 ? 1 : 8 - day
+  const dow = d.getDay()
+  const diff = dow === 1 ? 0 : dow === 0 ? 1 : 8 - dow
   d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 10)
+  return toLocalISO(d)
 }
 
 function addDays(isoDate, n) {
   const d = new Date(isoDate + 'T00:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().slice(0, 10)
+  return toLocalISO(d)
 }
 
 function formatDateRange(from, to) {
@@ -38,7 +49,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
   const isPro = user?.plan === 'paid'
 
   const [name,         setName]         = useState('')
-  const [weekStart,    setWeekStart]    = useState(() => nextMonday(new Date().toISOString().slice(0, 10)))
+  const [weekStart,    setWeekStart]    = useState(() => nextMonday(todayLocalISO()))
   const [durationDays, setDurationDays] = useState(7)
   const [creating,     setCreating]     = useState(false)
 
@@ -47,7 +58,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return
     setName('')
-    setWeekStart(nextMonday(new Date().toISOString().slice(0, 10)))
+    setWeekStart(nextMonday(todayLocalISO()))
     setDurationDays(7)
     setCreating(false)
   }, [open])
