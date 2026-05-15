@@ -41,7 +41,7 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">Eascadesk</p>
-            <p className="text-white/50 text-xs">Scheduler Lite</p>
+            <p className="text-white/50 text-xs">Scheduler</p>
           </div>
         </div>
       </div>
