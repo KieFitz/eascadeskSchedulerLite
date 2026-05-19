@@ -24,19 +24,18 @@ class Settings(BaseSettings):
 
     ADMIN_EMAIL: str = ""
 
-    # ── Twilio WhatsApp bot ───────────────────────────────────────────────────
-    TWILIO_ACCOUNT_SID: str = ""
-    TWILIO_AUTH_TOKEN: str = ""
-    TWILIO_WHATSAPP_FROM: str = ""  # e.g. whatsapp:+14155238886
+    # ── Meta (WhatsApp Business) bot ─────────────────────────────────────────
+    # Phone Number ID from Meta Developer Console → WhatsApp → API Setup
+    META_PHONE_NUMBER_ID: str = ""
+    # Permanent system user access token (or temporary token for dev)
+    META_ACCESS_TOKEN: str = ""
+    # Any string you choose — set the same value in Meta webhook config
+    META_WEBHOOK_VERIFY_TOKEN: str = ""
+    # App Secret from Meta Developer Console → App Settings → Basic
+    # Used to verify X-Hub-Signature-256 on inbound webhooks
+    META_APP_SECRET: str = ""
     # Set to "true" to skip webhook signature validation (local dev / ngrok)
-    TWILIO_SKIP_SIGNATURE: str = "false"
-
-    # Content template SIDs — create these in Twilio Console → Content Editor
-    TWILIO_TMPL_MAIN_MENU: str = ""
-    TWILIO_TMPL_FICHAR_MENU: str = ""
-    TWILIO_TMPL_BREAK_MENU: str = ""
-    TWILIO_TMPL_MORE_MENU: str = ""
-    TWILIO_TMPL_HOURS_MENU: str = ""
+    META_SKIP_SIGNATURE: str = "false"
 
     # Comma-separated allowed CORS origins.
     # e.g. "https://d123.cloudfront.net,http://localhost:5173"

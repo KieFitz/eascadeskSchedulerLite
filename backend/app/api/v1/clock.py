@@ -138,8 +138,7 @@ async def _send_edit_whatsapp(employee: Employee, event: ClockEvent, edit_req: C
         wa_session.state = f"edit_confirm_{edit_req.approval_token}"
         await db.flush()
 
-    to = f"whatsapp:{employee.phone}"
-    _send_text(to, msg)
+    _send_text(employee.phone, msg)
 
 
 @router.get("/events")

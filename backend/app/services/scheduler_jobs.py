@@ -108,8 +108,7 @@ async def check_missed_clockins() -> None:
                 start_local = _to_local(start_utc, tz_name)
                 time_str = start_local.strftime("%H:%M")
 
-                to = f"whatsapp:{employee.phone}"
-                _send_text(to, _t(lang, "reminder_clockin", time=time_str))
+                _send_text(employee.phone, _t(lang, "reminder_clockin", time=time_str))
 
                 sa.reminder_sent_at = now
                 await db.commit()
@@ -219,8 +218,7 @@ async def check_missed_clockouts() -> None:
                     )
                     db.add(audit)
 
-                    to = f"whatsapp:{employee.phone}"
-                    _send_text(to, _t(lang, "auto_clockout", time=time_str))
+                    _send_text(employee.phone, _t(lang, "auto_clockout", time=time_str))
 
                     await db.commit()
 

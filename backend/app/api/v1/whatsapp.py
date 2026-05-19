@@ -1,8 +1,8 @@
 """
-Twilio WhatsApp inbound webhook.
+Meta (WhatsApp Business) Cloud API inbound webhook.
 
-Public endpoint — no auth. Twilio calls this with a form-encoded POST for every
-inbound WhatsApp message sent to TWILIO_WHATSAPP_FROM.
+Public endpoint — no auth. Meta calls GET /webhook to verify the endpoint
+and POST /webhook for every inbound message.
 
 Conversation flow:
   Any message  →  Main Menu   [Fichar | Schedule | More]
@@ -21,13 +21,14 @@ Language support:
 """
 
 import datetime
+import hashlib
+import hmac
 import uuid
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 from sqlalchemy import select
-from twilio.request_validator import RequestValidator
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -77,35 +78,35 @@ def _to_local(dt: datetime.datetime, tz_name: str | None) -> datetime.datetime:
 # ── Localised strings ─────────────────────────────────────────────────────────
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
-        "not_registered": "Your number is not registered. Contact your manager.",
-        "clocked_in": "Clocked in at {time}. Have a great shift, {name}!",
-        "already_clocked_in": "You appear to already be clocked in since {time}. Did you mean to clock out? Reply *yes* or *no*.",
-        "clocked_out": "Clocked out at {time}. See you next time, {name}!\n{summary}",
-        "shift_summary": "Shift: {worked} worked · Break: {break_time}",
+        "not_registered": "⛔ Your number is not registered. Contact your manager.",
+        "clocked_in": "✅ Clocked in at *{time}*. Have a great shift, {name}!",
+        "already_clocked_in": "⚠️ You appear to already be clocked in since *{time}*. Did you mean to clock out? Reply *yes* or *no*.",
+        "clocked_out": "👋 Clocked out at *{time}*. See you next time, {name}!\n{summary}",
+        "shift_summary": "🕐 Shift: {worked} worked · ☕ Break: {break_time}",
         "shift_no_summary": "",
-        "not_clocked_in": "You don't appear to be clocked in. Would you like to clock in instead? Reply *yes* or *no*.",
-        "break_started": "Break started at {time}. Enjoy!",
-        "break_ended": "Break ended at {time}. Back to it!",
-        "no_shifts": "You have no upcoming shifts scheduled.",
-        "shifts_header": "Your next shifts:",
-        "hours_worked": "You've worked {hours}h {mins}m {period}, {name}.",
+        "not_clocked_in": "⚠️ You don't appear to be clocked in. Would you like to clock in instead? Reply *yes* or *no*.",
+        "break_started": "☕ Break started at *{time}*. Enjoy!",
+        "break_ended": "✅ Break ended at *{time}*. Back to it!",
+        "no_shifts": "📭 You have no upcoming shifts scheduled.",
+        "shifts_header": "📅 Your next shifts:",
+        "hours_worked": "🕐 You've worked *{hours}h {mins}m* {period}, {name}.",
         "this_week": "this week",
         "this_month": "this month",
-        "availability_soon": "Availability management via WhatsApp is coming soon. Visit the app to update your availability.",
+        "availability_soon": "🔜 Availability management via WhatsApp is coming soon. Visit the app to update your availability.",
         "lang_switch_hint": "_Escribe *hola* para español_",
-        "main_menu_body": "Hi {name}! What would you like to do?",
+        "main_menu_body": "👋 Hi *{name}*! What would you like to do?\n\n🕐 Clock in or out\n📅 View your schedule\n➕ More options",
         "main_menu_btn": "View options",
-        "fichar_body": "What would you like to do?",
+        "fichar_body": "🕐 What would you like to do?\n\n✅ Start your shift\n👋 End your shift\n☕ Manage a break",
         "fichar_btn": "Select",
-        "break_body": "Break options:",
+        "break_body": "☕ Break options:\n\n▶️ Start your break\n⏹️ End your break\n↩️ Go back",
         "break_btn": "Select",
-        "more_body": "More options:",
+        "more_body": "➕ More options:\n\n🕐 See hours worked\n📆 Update availability\n↩️ Go back",
         "more_btn": "Select",
-        "hours_body": "Which period?",
+        "hours_body": "🕐 Which period?\n\n📅 Since Monday\n📆 Since 1st of the month\n↩️ Go back",
         "hours_btn": "Select",
-        "opt_fichar": "Fichar",
+        "opt_fichar": "Clock In/Out",
         "opt_fichar_desc": "Clock in, clock out or break",
-        "opt_schedule": "Schedule",
+        "opt_schedule": "My Schedule",
         "opt_schedule_desc": "View your upcoming shifts",
         "opt_more": "More",
         "opt_more_desc": "Hours worked & availability",
@@ -131,49 +132,49 @@ STRINGS: dict[str, dict[str, str]] = {
         "opt_this_month_desc": "Hours worked this month",
         "confirm_yes": "yes",
         "confirm_no": "no",
-        "cancelled": "OK, no changes made.",
-        "reminder_clockin": "⏰ Reminder: Your shift started at {time}. Please clock in.",
-        "auto_clockout": "Your shift ended at {time}. No clock-out was recorded — shift end time has been used. Contact your manager if overtime applies.",
+        "cancelled": "👍 OK, no changes made.",
+        "reminder_clockin": "⏰ Reminder: Your shift started at *{time}*. Please clock in.",
+        "auto_clockout": "🔔 Your shift ended at *{time}*. No clock-out was recorded — shift end time has been used. Contact your manager if overtime applies.",
         "edit_request": (
             "⚠️ Your manager has proposed a correction to your {type} record:\n"
             "• Was: {old}\n• Now: {new}\n"
             "{reason_line}"
             "Reply *yes* to approve or *no* to reject."
         ),
-        "edit_approved": "✅ Time correction approved. Your record has been updated to {new}.",
+        "edit_approved": "✅ Time correction approved. Your record has been updated to *{new}*.",
         "edit_rejected": "❌ Time correction rejected. Your original record remains unchanged.",
-        "edit_not_found": "This edit request has already been resolved or is no longer valid.",
+        "edit_not_found": "⚠️ This edit request has already been resolved or is no longer valid.",
     },
     "es": {
-        "not_registered": "Tu número no está registrado. Contacta con tu responsable.",
-        "clocked_in": "Fichaje de entrada a las {time}. ¡Que tengas un buen turno, {name}!",
-        "already_clocked_in": "Parece que ya fichaste entrada a las {time}. ¿Querías fichar salida? Responde *sí* o *no*.",
-        "clocked_out": "Fichaje de salida a las {time}. ¡Hasta pronto, {name}!\n{summary}",
-        "shift_summary": "Turno: {worked} trabajado · Descanso: {break_time}",
+        "not_registered": "⛔ Tu número no está registrado. Contacta con tu responsable.",
+        "clocked_in": "✅ Fichaje de entrada a las *{time}*. ¡Que tengas un buen turno, {name}!",
+        "already_clocked_in": "⚠️ Parece que ya fichaste entrada a las *{time}*. ¿Querías fichar salida? Responde *sí* o *no*.",
+        "clocked_out": "👋 Fichaje de salida a las *{time}*. ¡Hasta pronto, {name}!\n{summary}",
+        "shift_summary": "🕐 Turno: {worked} trabajado · ☕ Descanso: {break_time}",
         "shift_no_summary": "",
-        "not_clocked_in": "No parece que hayas fichado entrada. ¿Quieres fichar entrada ahora? Responde *sí* o *no*.",
-        "break_started": "Descanso iniciado a las {time}. ¡Disfruta!",
-        "break_ended": "Descanso terminado a las {time}. ¡De vuelta al trabajo!",
-        "no_shifts": "No tienes turnos próximos programados.",
-        "shifts_header": "Tus próximos turnos:",
-        "hours_worked": "Has trabajado {hours}h {mins}m {period}, {name}.",
+        "not_clocked_in": "⚠️ No parece que hayas fichado entrada. ¿Quieres fichar entrada ahora? Responde *sí* o *no*.",
+        "break_started": "☕ Descanso iniciado a las *{time}*. ¡Disfruta!",
+        "break_ended": "✅ Descanso terminado a las *{time}*. ¡De vuelta al trabajo!",
+        "no_shifts": "📭 No tienes turnos próximos programados.",
+        "shifts_header": "📅 Tus próximos turnos:",
+        "hours_worked": "🕐 Has trabajado *{hours}h {mins}m* {period}, {name}.",
         "this_week": "esta semana",
         "this_month": "este mes",
-        "availability_soon": "La gestión de disponibilidad por WhatsApp estará disponible pronto. Visita la app para actualizar tu disponibilidad.",
+        "availability_soon": "🔜 La gestión de disponibilidad por WhatsApp estará disponible pronto. Visita la app para actualizar tu disponibilidad.",
         "lang_switch_hint": "_Type *hi* for English_",
-        "main_menu_body": "¡Hola {name}! ¿Qué quieres hacer?",
+        "main_menu_body": "👋 ¡Hola *{name}*! ¿Qué quieres hacer?\n\n🕐 Fichar entrada o salida\n📅 Ver tu horario\n➕ Más opciones",
         "main_menu_btn": "Ver opciones",
-        "fichar_body": "¿Qué quieres hacer?",
+        "fichar_body": "🕐 ¿Qué quieres hacer?\n\n✅ Iniciar turno\n👋 Finalizar turno\n☕ Gestionar descanso",
         "fichar_btn": "Seleccionar",
-        "break_body": "Opciones de descanso:",
+        "break_body": "☕ Opciones de descanso:\n\n▶️ Iniciar descanso\n⏹️ Finalizar descanso\n↩️ Volver",
         "break_btn": "Seleccionar",
-        "more_body": "Más opciones:",
+        "more_body": "➕ Más opciones:\n\n🕐 Ver horas trabajadas\n📆 Actualizar disponibilidad\n↩️ Volver",
         "more_btn": "Seleccionar",
-        "hours_body": "¿Qué período?",
+        "hours_body": "🕐 ¿Qué período?\n\n📅 Desde el lunes\n📆 Desde el día 1 del mes\n↩️ Volver",
         "hours_btn": "Seleccionar",
         "opt_fichar": "Fichar",
         "opt_fichar_desc": "Entrada, salida o descanso",
-        "opt_schedule": "Horario",
+        "opt_schedule": "Mi horario",
         "opt_schedule_desc": "Ver tus próximos turnos",
         "opt_more": "Más",
         "opt_more_desc": "Horas trabajadas y disponibilidad",
@@ -199,18 +200,18 @@ STRINGS: dict[str, dict[str, str]] = {
         "opt_this_month_desc": "Horas este mes",
         "confirm_yes": "sí",
         "confirm_no": "no",
-        "cancelled": "De acuerdo, sin cambios.",
-        "reminder_clockin": "⏰ Recordatorio: Tu turno comenzó a las {time}. Por favor ficha entrada.",
-        "auto_clockout": "Tu turno terminó a las {time}. No se registró salida — se ha usado la hora de fin del turno. Contacta con tu responsable si hay horas extra.",
+        "cancelled": "👍 De acuerdo, sin cambios.",
+        "reminder_clockin": "⏰ Recordatorio: Tu turno comenzó a las *{time}*. Por favor ficha entrada.",
+        "auto_clockout": "🔔 Tu turno terminó a las *{time}*. No se registró salida — se ha usado la hora de fin del turno. Contacta con tu responsable si hay horas extra.",
         "edit_request": (
             "⚠️ Tu responsable ha propuesto una corrección en tu registro de {type}:\n"
             "• Era: {old}\n• Ahora: {new}\n"
             "{reason_line}"
             "Responde *sí* para aprobar o *no* para rechazar."
         ),
-        "edit_approved": "✅ Corrección aprobada. Tu registro se ha actualizado a las {new}.",
+        "edit_approved": "✅ Corrección aprobada. Tu registro se ha actualizado a las *{new}*.",
         "edit_rejected": "❌ Corrección rechazada. Tu registro original permanece sin cambios.",
-        "edit_not_found": "Esta solicitud de corrección ya ha sido resuelta o ya no es válida.",
+        "edit_not_found": "⚠️ Esta solicitud de corrección ya ha sido resuelta o ya no es válida.",
     },
 }
 
@@ -224,71 +225,103 @@ def _t(lang: str, key: str, **kwargs: object) -> str:
     return STRINGS[lang][key].format(**kwargs)  # type: ignore[arg-type]
 
 
-# ── Twilio REST helpers ───────────────────────────────────────────────────────
+# ── Meta Cloud API helpers ────────────────────────────────────────────────────
 
-def _twilio_url(path: str) -> str:
-    return f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/{path}"
+_META_BASE = "https://graph.facebook.com/v20.0"
 
 
-def _twilio_post(path: str, data: dict) -> None:
-    with httpx.Client() as client:
-        r = client.post(
-            _twilio_url(path),
-            data=data,
-            auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
-        )
-    if r.status_code >= 400:
-        raise RuntimeError(f"Twilio API error {r.status_code}: {r.text}")
+def _meta_headers() -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {settings.META_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
 
 
 def _send_text(to: str, body: str) -> None:
-    _twilio_post("Messages.json", {
-        "From": settings.TWILIO_WHATSAPP_FROM,
-        "To": to,
-        "Body": body,
-    })
+    """Send a plain-text WhatsApp message via Meta Cloud API.
+
+    `to` is an E.164 phone number (no 'whatsapp:' prefix).
+    """
+    with httpx.Client() as client:
+        r = client.post(
+            f"{_META_BASE}/{settings.META_PHONE_NUMBER_ID}/messages",
+            headers=_meta_headers(),
+            json={
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": to,
+                "type": "text",
+                "text": {"body": body},
+            },
+        )
+    if r.status_code >= 400:
+        raise RuntimeError(f"Meta API error {r.status_code}: {r.text}")
+
+
+def _send_button_message(to: str, body: str, buttons: list[dict]) -> None:
+    """Send up to 3 inline reply buttons. Each button: {"id": str, "title": str}."""
+    with httpx.Client() as client:
+        r = client.post(
+            f"{_META_BASE}/{settings.META_PHONE_NUMBER_ID}/messages",
+            headers=_meta_headers(),
+            json={
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": to,
+                "type": "interactive",
+                "interactive": {
+                    "type": "button",
+                    "body": {"text": body},
+                    "action": {
+                        "buttons": [
+                            {"type": "reply", "reply": {"id": b["id"], "title": b["title"]}}
+                            for b in buttons
+                        ],
+                    },
+                },
+            },
+        )
+    if r.status_code >= 400:
+        raise RuntimeError(f"Meta API error {r.status_code}: {r.text}")
 
 
 def _send_list_message(to: str, body: str, button_label: str, sections: list[dict]) -> None:
-    """
-    Send a WhatsApp interactive list message via Twilio Content API (inline).
-    Creates a transient twilio/list-picker content object and immediately sends it.
-    Works on sandbox without template approval.
-    """
-    content_payload = {
-        "friendly_name": f"list_{uuid.uuid4().hex[:8]}",
-        "language": "en",
-        "types": {
-            "twilio/list-picker": {
-                "body": body,
-                "button": button_label,
-                "items": [
-                    {
-                        "id": row["id"],
-                        "item": row["title"],
-                        "description": row.get("description", ""),
-                    }
-                    for section in sections
-                    for row in section["rows"]
-                ],
-            }
-        },
-    }
+    """Send a WhatsApp interactive list message via Meta Cloud API."""
+    meta_sections = []
+    for section in sections:
+        meta_sections.append({
+            "title": section.get("title", ""),
+            "rows": [
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "description": row.get("description", ""),
+                }
+                for row in section["rows"]
+            ],
+        })
+
     with httpx.Client() as client:
         r = client.post(
-            "https://content.twilio.com/v1/Content",
-            json=content_payload,
-            auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
+            f"{_META_BASE}/{settings.META_PHONE_NUMBER_ID}/messages",
+            headers=_meta_headers(),
+            json={
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": to,
+                "type": "interactive",
+                "interactive": {
+                    "type": "list",
+                    "body": {"text": body},
+                    "action": {
+                        "button": button_label,
+                        "sections": meta_sections,
+                    },
+                },
+            },
         )
     if r.status_code >= 400:
-        raise RuntimeError(f"Twilio Content API error {r.status_code}: {r.text}")
-    content_sid = r.json()["sid"]
-
-    _twilio_post("Messages.json", {
-        "From": settings.TWILIO_WHATSAPP_FROM,
-        "To": to,
-        "ContentSid": content_sid,
-    })
+        raise RuntimeError(f"Meta API error {r.status_code}: {r.text}")
 
 
 # ── Menu senders ──────────────────────────────────────────────────────────────
@@ -297,86 +330,66 @@ def _send_main_menu(to: str, name: str, lang: str) -> None:
     s = STRINGS[lang]
     body = s["main_menu_body"].format(name=name)
     hint = s["lang_switch_hint"]
-    _send_list_message(
+    _send_button_message(
         to,
         body=f"{body}\n\n{hint}",
-        button_label=s["main_menu_btn"],
-        sections=[{
-            "title": "Options",
-            "rows": [
-                {"id": ID_FICHAR,   "title": s["opt_fichar"],   "description": s["opt_fichar_desc"]},
-                {"id": ID_SCHEDULE, "title": s["opt_schedule"],  "description": s["opt_schedule_desc"]},
-                {"id": ID_MORE,     "title": s["opt_more"],      "description": s["opt_more_desc"]},
-            ],
-        }],
+        buttons=[
+            {"id": ID_FICHAR,   "title": s["opt_fichar"]},
+            {"id": ID_SCHEDULE, "title": s["opt_schedule"]},
+            {"id": ID_MORE,     "title": s["opt_more"]},
+        ],
     )
 
 
 def _send_fichar_menu(to: str, lang: str) -> None:
     s = STRINGS[lang]
-    _send_list_message(
+    _send_button_message(
         to,
         body=s["fichar_body"],
-        button_label=s["fichar_btn"],
-        sections=[{
-            "title": s["opt_fichar"],
-            "rows": [
-                {"id": ID_CLOCK_IN,  "title": s["opt_clock_in"],  "description": s["opt_clock_in_desc"]},
-                {"id": ID_CLOCK_OUT, "title": s["opt_clock_out"], "description": s["opt_clock_out_desc"]},
-                {"id": ID_BREAK,     "title": s["opt_break"],     "description": s["opt_break_desc"]},
-            ],
-        }],
+        buttons=[
+            {"id": ID_CLOCK_IN,  "title": s["opt_clock_in"]},
+            {"id": ID_CLOCK_OUT, "title": s["opt_clock_out"]},
+            {"id": ID_BREAK,     "title": s["opt_break"]},
+        ],
     )
 
 
 def _send_break_menu(to: str, lang: str) -> None:
     s = STRINGS[lang]
-    _send_list_message(
+    _send_button_message(
         to,
         body=s["break_body"],
-        button_label=s["break_btn"],
-        sections=[{
-            "title": s["opt_break"],
-            "rows": [
-                {"id": ID_BREAK_START, "title": s["opt_start_break"], "description": s["opt_start_break_desc"]},
-                {"id": ID_BREAK_END,   "title": s["opt_end_break"],   "description": s["opt_end_break_desc"]},
-                {"id": ID_BACK,        "title": s["opt_back"],        "description": s["opt_back_desc"]},
-            ],
-        }],
+        buttons=[
+            {"id": ID_BREAK_START, "title": s["opt_start_break"]},
+            {"id": ID_BREAK_END,   "title": s["opt_end_break"]},
+            {"id": ID_BACK,        "title": s["opt_back"]},
+        ],
     )
 
 
 def _send_more_menu(to: str, lang: str) -> None:
     s = STRINGS[lang]
-    _send_list_message(
+    _send_button_message(
         to,
         body=s["more_body"],
-        button_label=s["more_btn"],
-        sections=[{
-            "title": s["opt_more"],
-            "rows": [
-                {"id": ID_HOURS,        "title": s["opt_hours"],        "description": s["opt_hours_desc"]},
-                {"id": ID_AVAILABILITY, "title": s["opt_availability"],  "description": s["opt_availability_desc"]},
-                {"id": ID_BACK,         "title": s["opt_back"],          "description": s["opt_back_desc"]},
-            ],
-        }],
+        buttons=[
+            {"id": ID_HOURS,        "title": s["opt_hours"]},
+            {"id": ID_AVAILABILITY, "title": s["opt_availability"]},
+            {"id": ID_BACK,         "title": s["opt_back"]},
+        ],
     )
 
 
 def _send_hours_menu(to: str, lang: str) -> None:
     s = STRINGS[lang]
-    _send_list_message(
+    _send_button_message(
         to,
         body=s["hours_body"],
-        button_label=s["hours_btn"],
-        sections=[{
-            "title": s["opt_hours"],
-            "rows": [
-                {"id": ID_HOURS_WEEK,  "title": s["opt_this_week"],  "description": s["opt_this_week_desc"]},
-                {"id": ID_HOURS_MONTH, "title": s["opt_this_month"], "description": s["opt_this_month_desc"]},
-                {"id": ID_BACK,        "title": s["opt_back"],       "description": s["opt_back_desc"]},
-            ],
-        }],
+        buttons=[
+            {"id": ID_HOURS_WEEK,  "title": s["opt_this_week"]},
+            {"id": ID_HOURS_MONTH, "title": s["opt_this_month"]},
+            {"id": ID_BACK,        "title": s["opt_back"]},
+        ],
     )
 
 
@@ -416,7 +429,12 @@ async def _get_or_create_session(db, employee_id: str) -> WhatsAppSession:
 
 
 def _detect_language(body_lower: str, current_lang: str) -> str:
-    """Return "es" or "en" based on trigger words in the inbound message."""
+    """Return "es" or "en" based on trigger words in the inbound message.
+    Skip detection for button/menu IDs — they contain Spanish words but are
+    not typed by the user so should not trigger a language switch.
+    """
+    if _body_to_id(body_lower):
+        return current_lang
     words = set(body_lower.split())
     if words & _ES_TRIGGERS:
         return "es"
@@ -778,7 +796,7 @@ async def _handle_edit_confirm(
     session: "WhatsAppSession",
     to: str,
     lang: str,
-    db: "AsyncSession",
+    db,
 ) -> None:
     """Handle yes/no reply to a manager's proposed edit."""
     import httpx as _httpx
@@ -815,24 +833,75 @@ async def _handle_edit_confirm(
     session.state = "main_menu"
 
 
-# ── Main webhook ──────────────────────────────────────────────────────────────
+# ── Webhook verification (GET) ────────────────────────────────────────────────
+
+@router.get("/webhook")
+async def whatsapp_verify(
+    hub_mode: str = Query(alias="hub.mode", default=""),
+    hub_verify_token: str = Query(alias="hub.verify_token", default=""),
+    hub_challenge: str = Query(alias="hub.challenge", default=""),
+) -> Response:
+    """Meta calls GET /webhook to verify the endpoint during setup."""
+    if hub_mode == "subscribe" and hub_verify_token == settings.META_WEBHOOK_VERIFY_TOKEN:
+        return Response(content=hub_challenge, media_type="text/plain")
+    return Response(content="Forbidden", status_code=403)
+
+
+# ── Main webhook (POST) ───────────────────────────────────────────────────────
 
 @router.post("/webhook")
 async def whatsapp_webhook(request: Request) -> Response:
-    form = await request.form()
-    form_dict = dict(form)
+    raw_body = await request.body()
 
-    # Validate Twilio signature — skip in local dev by setting TWILIO_SKIP_SIGNATURE=true
-    if settings.TWILIO_AUTH_TOKEN and settings.TWILIO_SKIP_SIGNATURE.lower() != "true":
-        validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
-        signature = request.headers.get("X-Twilio-Signature", "")
-        url = str(request.url)
-        if not validator.validate(url, form_dict, signature):
+    # Verify X-Hub-Signature-256 — skip in local dev by setting META_SKIP_SIGNATURE=true
+    if settings.META_APP_SECRET and settings.META_SKIP_SIGNATURE.lower() != "true":
+        sig_header = request.headers.get("X-Hub-Signature-256", "")
+        expected = "sha256=" + hmac.new(
+            settings.META_APP_SECRET.encode(),
+            raw_body,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(sig_header, expected):
             return Response(content="Forbidden", status_code=403)
 
-    from_field: str = form_dict.get("From", "")
-    phone = from_field.replace("whatsapp:", "")
-    body_text: str = form_dict.get("Body", "").strip()
+    import json
+    try:
+        payload = json.loads(raw_body)
+    except Exception:
+        return Response(content="Bad Request", status_code=400)
+
+    # Extract the first message from the webhook payload (if any)
+    try:
+        entry = payload["entry"][0]
+        change = entry["changes"][0]["value"]
+        messages = change.get("messages")
+        if not messages:
+            # Delivery/read receipts — acknowledge and ignore
+            return Response(status_code=200)
+        msg = messages[0]
+    except (KeyError, IndexError):
+        return Response(status_code=200)
+
+    # Meta sends numbers without '+' prefix — normalise to E.164 (+353...)
+    raw_from: str = msg.get("from", "")
+    phone: str = "+" + raw_from if raw_from and not raw_from.startswith("+") else raw_from
+
+    # Extract text: either a plain text message or an interactive list reply
+    msg_type = msg.get("type", "")
+    if msg_type == "text":
+        body_text: str = msg.get("text", {}).get("body", "").strip()
+    elif msg_type == "interactive":
+        interactive = msg.get("interactive", {})
+        if interactive.get("type") == "list_reply":
+            body_text = interactive.get("list_reply", {}).get("id", "").strip()
+        elif interactive.get("type") == "button_reply":
+            body_text = interactive.get("button_reply", {}).get("id", "").strip()
+        else:
+            body_text = ""
+    else:
+        # Ignore other message types (image, audio, etc.)
+        return Response(status_code=200)
+
     body_lower = body_text.lower()
 
     async with AsyncSessionLocal() as db:
@@ -842,9 +911,8 @@ async def whatsapp_webhook(request: Request) -> Response:
         employee = result.scalar_one_or_none()
 
         if not employee:
-            # Use English for unregistered users — no session to check
-            _send_text(from_field, STRINGS["en"]["not_registered"])
-            return Response(status_code=204)
+            _send_text(phone, STRINGS["en"]["not_registered"])
+            return Response(status_code=200)
 
         session = await _get_or_create_session(db, employee.id)
 
@@ -861,70 +929,70 @@ async def whatsapp_webhook(request: Request) -> Response:
 
         # ── Confirmation states (yes/no responses) ────────────────────────────
         if state in ("confirm_clock_in", "confirm_clock_out"):
-            await _handle_confirm(body_lower, db, employee, session, form_dict, from_field, tz_name)
+            await _handle_confirm(body_lower, db, employee, session, payload, phone, tz_name)
 
         elif state.startswith("edit_confirm_"):
-            await _handle_edit_confirm(body_lower, state, session, from_field, lang, db)
+            await _handle_edit_confirm(body_lower, state, session, phone, lang, db)
 
         # ── Direct shortcuts — bypass menus regardless of state ───────────────
         elif effective in (ID_CLOCK_IN, ID_CLOCK_OUT):
-            await _handle_direct_clock(effective, db, employee, session, form_dict, from_field, tz_name)
+            await _handle_direct_clock(effective, db, employee, session, payload, phone, tz_name)
 
         elif effective == ID_SCHEDULE:
-            await _handle_schedule(db, employee, from_field, lang)
+            await _handle_schedule(db, employee, phone, lang)
             session.state = "main_menu"
 
         # ── Top-level menu navigation ─────────────────────────────────────────
         elif effective == ID_FICHAR:
-            _send_fichar_menu(from_field, lang)
+            _send_fichar_menu(phone, lang)
             session.state = "fichar"
 
         elif effective == ID_MORE:
-            _send_more_menu(from_field, lang)
+            _send_more_menu(phone, lang)
             session.state = "more"
 
         elif effective == ID_BREAK and state != "break":
-            _send_break_menu(from_field, lang)
+            _send_break_menu(phone, lang)
             session.state = "break"
 
         elif effective == ID_HOURS:
-            _send_hours_menu(from_field, lang)
+            _send_hours_menu(phone, lang)
             session.state = "hours"
 
         # ── State-machine sub-menu handling ───────────────────────────────────
         elif state == "fichar":
-            await _handle_clock(effective, db, employee, session, form_dict, from_field, tz_name)
+            await _handle_clock(effective, db, employee, session, payload, phone, tz_name)
 
         elif state == "break":
-            await _handle_break(effective, db, employee, session, form_dict, from_field, tz_name)
+            await _handle_break(effective, db, employee, session, payload, phone, tz_name)
 
         elif state == "more":
             if effective == ID_AVAILABILITY:
-                _send_text(from_field, _t(lang, "availability_soon"))
+                _send_text(phone, _t(lang, "availability_soon"))
                 session.state = "main_menu"
             elif effective == ID_BACK:
-                _send_main_menu(from_field, employee.name, lang)
+                _send_main_menu(phone, employee.name, lang)
                 session.state = "main_menu"
             else:
-                _send_more_menu(from_field, lang)
+                _send_more_menu(phone, lang)
 
         elif state == "hours":
-            await _handle_hours(effective, db, employee, session, from_field, tz_name)
+            await _handle_hours(effective, db, employee, session, phone, tz_name)
 
         else:
             # First contact, "hi", "hola", or anything unrecognised → main menu
-            _send_main_menu(from_field, employee.name, lang)
+            _send_main_menu(phone, employee.name, lang)
             session.state = "main_menu"
 
         await db.commit()
 
-    return Response(status_code=204)
+    return Response(status_code=200)
 
 
 def _body_to_id(text: str) -> str:
     """
     Map inbound Body text to an internal ID.
-    List message selections send the row title as Body; we also accept
+    Interactive list replies send the row id directly; we also accept
     common free-text shorthands so the bot still works without the list UI.
     Includes Spanish menu title aliases.
     """
