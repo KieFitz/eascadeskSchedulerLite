@@ -42,6 +42,7 @@ const APPLIES_OPTIONS = [
 const EMPTY_FORM = {
   name: '',
   phone: '',
+  nif: '',
   skills: '',
   min_hours_week: 0,
   cost_per_hour: 0,
@@ -111,6 +112,7 @@ export default function Employees() {
     setForm({
       name: emp.name,
       phone: emp.phone,
+      nif: emp.nif ?? '',
       skills: emp.skills.join(', '),
       min_hours_week: emp.min_hours_week,
       cost_per_hour: emp.cost_per_hour,
@@ -125,6 +127,7 @@ export default function Employees() {
       const payload = {
         name: form.name.trim(),
         phone: form.phone.trim(),
+        nif: form.nif.trim() || null,
         skills: form.skills.split(',').map((s) => s.trim()).filter(Boolean),
         min_hours_week: Number(form.min_hours_week) || 0,
         cost_per_hour: Number(form.cost_per_hour) || 0,
@@ -334,6 +337,12 @@ export default function Employees() {
             placeholder="+353871234567"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+          <Input
+            label="NIF (optional)"
+            placeholder="e.g. 12345678A"
+            value={form.nif}
+            onChange={(e) => setForm({ ...form, nif: e.target.value })}
           />
           <Input
             label="Skills (comma separated)"

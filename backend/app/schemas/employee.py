@@ -55,6 +55,7 @@ class AvailabilityOut(AvailabilityIn):
 class EmployeeIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     phone: str
+    nif: str | None = Field(default=None, max_length=20)
     skills: list[str] = []
     min_hours_week: int = Field(default=0, ge=0, le=168)
     cost_per_hour: float = Field(default=0.0, ge=0)
@@ -69,6 +70,7 @@ class EmployeeIn(BaseModel):
 class EmployeeUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     phone: str | None = None
+    nif: str | None = Field(default=None, max_length=20)
     skills: list[str] | None = None
     min_hours_week: int | None = Field(default=None, ge=0, le=168)
     cost_per_hour: float | None = Field(default=None, ge=0)
@@ -84,6 +86,7 @@ class EmployeeOut(BaseModel):
     id: str
     name: str
     phone: str
+    nif: str | None
     skills: list[str]
     min_hours_week: int
     cost_per_hour: float
