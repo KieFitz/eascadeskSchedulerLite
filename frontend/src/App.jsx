@@ -8,6 +8,7 @@ import Rules from './pages/Rules'
 import Pricing from './pages/Pricing'
 import Employees from './pages/Employees'
 import ClockEvents from './pages/ClockEvents'
+import Guide from './pages/Guide'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -78,6 +79,15 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Pricing />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/guide"
+        element={
+          <ProtectedRoute>
+            <Guide />
           </ProtectedRoute>
         }
       />

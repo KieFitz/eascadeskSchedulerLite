@@ -7,6 +7,7 @@ import {
   StarIcon,
   CreditCardIcon,
   UserGroupIcon,
+  BookOpenIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../context/AuthContext'
 import { useTranslations } from '../../i18n'
@@ -25,6 +26,7 @@ export default function Sidebar() {
       { to: '/clock',      label: 'Clock Events', Icon: ClockIcon },
     ] : []),
     { to: '/rules', label: t('navRules'), Icon: ScaleIcon },
+    { to: '/guide', label: 'Guide', Icon: BookOpenIcon },
   ]
 
   return (
