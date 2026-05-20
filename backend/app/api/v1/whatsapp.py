@@ -34,6 +34,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.clock_event import ClockEvent
 from app.models.employee import Employee
+from app.models.schedule import ScheduleRun
 from app.models.shift_assignment import ShiftAssignment
 from app.models.user import User
 from app.models.whatsapp_session import WhatsAppSession
@@ -744,23 +745,37 @@ async def _handle_break(
 
 async def _handle_schedule(db, employee: Employee, to: str, lang: str) -> None:
     today = datetime.date.today()
-    result = await db.execute(
-        select(ShiftAssignment)
-        .where(ShiftAssignment.employee_id == employee.id, ShiftAssignment.date >= today)
-        .order_by(ShiftAssignment.date, ShiftAssignment.start_min)
-        .limit(5)
-    )
-    assignments = result.scalars().all()
+    today_str = str(today)
 
-    if not assignments:
+    # Schedule data lives in ScheduleRun.result_data (JSON), not the shift_assignments table.
+    # Fetch all published runs whose date_to is >= today so past runs are excluded.
+    from sqlalchemy import or_
+    runs_result = await db.execute(
+        select(ScheduleRun).where(
+            ScheduleRun.user_id == employee.user_id,
+            ScheduleRun.is_published == True,  # noqa: E712
+            or_(ScheduleRun.date_to == None, ScheduleRun.date_to >= today),  # noqa: E711
+        )
+    )
+    runs = runs_result.scalars().all()
+
+    upcoming: list[tuple[str, str, str]] = []  # (date_str, start_time, end_time)
+    for run in runs:
+        for a in (run.result_data or {}).get("assignments", []):
+            if a.get("employee_id") == employee.id and (a.get("date") or "") >= today_str:
+                upcoming.append((a["date"], a["start_time"], a["end_time"]))
+
+    upcoming.sort()
+    upcoming = upcoming[:5]
+
+    if not upcoming:
         _send_text(to, _t(lang, "no_shifts"))
         return
 
     lines = [_t(lang, "shifts_header")]
-    for a in assignments:
-        start_h, start_m = divmod(a.start_min, 60)
-        end_h, end_m = divmod(a.end_min, 60)
-        lines.append(f"• {a.date.strftime('%a %d %b')}  {start_h:02d}:{start_m:02d}–{end_h:02d}:{end_m:02d}")
+    for date_str, start_time, end_time in upcoming:
+        d = datetime.date.fromisoformat(date_str)
+        lines.append(f"• {d.strftime('%a %d %b')}  {start_time}–{end_time}")
     _send_text(to, "\n".join(lines))
 
 
