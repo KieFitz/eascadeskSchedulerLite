@@ -79,7 +79,7 @@ def _to_local(dt: datetime.datetime, tz_name: str | None) -> datetime.datetime:
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "not_registered": "⛔ Your number is not registered. Contact your manager.",
-        "clocked_in": "✅ Clocked in at *{time}*. Have a great shift, {name}!",
+        "clocked_in": "✅ Clocked in at *{time}*. Have a great shift, {name}!\n\nYou can start a break or clock out when you're ready.",
         "already_clocked_in": "⚠️ You appear to already be clocked in since *{time}*. Did you mean to clock out? Reply *yes* or *no*.",
         "clocked_out": "👋 Clocked out at *{time}*. See you next time, {name}!\n{summary}",
         "shift_summary": "🕐 Shift: {worked} worked · ☕ Break: {break_time}",
@@ -147,7 +147,7 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "es": {
         "not_registered": "⛔ Tu número no está registrado. Contacta con tu responsable.",
-        "clocked_in": "✅ Fichaje de entrada a las *{time}*. ¡Que tengas un buen turno, {name}!",
+        "clocked_in": "✅ Fichaje de entrada a las *{time}*. ¡Que tengas un buen turno, {name}!\n\nPuedes iniciar un descanso o fichar salida cuando quieras.",
         "already_clocked_in": "⚠️ Parece que ya fichaste entrada a las *{time}*. ¿Querías fichar salida? Responde *sí* o *no*.",
         "clocked_out": "👋 Fichaje de salida a las *{time}*. ¡Hasta pronto, {name}!\n{summary}",
         "shift_summary": "🕐 Turno: {worked} trabajado · ☕ Descanso: {break_time}",
@@ -380,6 +380,20 @@ def _send_more_menu(to: str, lang: str) -> None:
     )
 
 
+def _send_clocked_in_menu(to: str, lang: str, clocked_in_msg: str) -> None:
+    """Send the clock-in confirmation with Break and Clock Out quick-action buttons."""
+    s = STRINGS[lang]
+    _send_button_message(
+        to,
+        body=clocked_in_msg,
+        buttons=[
+            {"id": ID_BREAK_START, "title": s["opt_start_break"]},
+            {"id": ID_CLOCK_OUT,   "title": s["opt_clock_out"]},
+            {"id": ID_BACK,        "title": s["opt_back"]},
+        ],
+    )
+
+
 def _send_hours_menu(to: str, lang: str) -> None:
     s = STRINGS[lang]
     _send_button_message(
@@ -594,8 +608,8 @@ async def _handle_direct_clock(
         else:
             shift = await _find_shift_for_now(db, employee.id, tz_name)
             await _write_clock_event(db, employee.id, "in", raw, shift_assignment_id=shift.id if shift else None)
-            _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
-            session.state = "main_menu"
+            _send_clocked_in_menu(to, lang, _t(lang, "clocked_in", time=now_str, name=employee.name))
+            session.state = "clocked_in"
 
     elif effective == ID_CLOCK_OUT:
         if last_type != "in":
@@ -628,7 +642,9 @@ async def _handle_confirm(
         if is_yes:
             shift = await _find_shift_for_now(db, employee.id, tz_name)
             await _write_clock_event(db, employee.id, "in", raw, shift_assignment_id=shift.id if shift else None)
-            _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
+            _send_clocked_in_menu(to, lang, _t(lang, "clocked_in", time=now_str, name=employee.name))
+            session.state = "clocked_in"
+            return
         elif is_no:
             _send_text(to, _t(lang, "cancelled"))
         else:
@@ -668,8 +684,8 @@ async def _handle_clock(
     if payload == ID_CLOCK_IN:
         shift = await _find_shift_for_now(db, employee.id, tz_name)
         await _write_clock_event(db, employee.id, "in", raw, shift_assignment_id=shift.id if shift else None)
-        _send_text(to, _t(lang, "clocked_in", time=now_str, name=employee.name))
-        session.state = "main_menu"
+        _send_clocked_in_menu(to, lang, _t(lang, "clocked_in", time=now_str, name=employee.name))
+        session.state = "clocked_in"
     elif payload == ID_CLOCK_OUT:
         shift = await _find_shift_for_now(db, employee.id, tz_name)
         summary = await _shift_summary(db, employee.id, tz_name, lang)
@@ -933,6 +949,22 @@ async def whatsapp_webhook(request: Request) -> Response:
 
         elif state.startswith("edit_confirm_"):
             await _handle_edit_confirm(body_lower, state, session, phone, lang, db)
+
+        # ── Post-clock-in state: Break / Clock Out / Back buttons ────────────
+        elif state == "clocked_in":
+            if effective == ID_BREAK_START:
+                await _handle_break(ID_BREAK_START, db, employee, session, payload, phone, tz_name)
+            elif effective == ID_CLOCK_OUT:
+                await _handle_direct_clock(ID_CLOCK_OUT, db, employee, session, payload, phone, tz_name)
+            elif effective == ID_BACK:
+                _send_main_menu(phone, employee.name, lang)
+                session.state = "main_menu"
+            else:
+                # Anything else — re-show the same buttons
+                last_type2, last_at2 = await _last_clock_state(db, employee.id, tz_name)
+                now_str2 = _local_now(tz_name).strftime("%H:%M")
+                since2 = _to_local(last_at2, tz_name).strftime("%H:%M") if last_at2 else now_str2
+                _send_clocked_in_menu(phone, lang, _t(lang, "clocked_in", time=since2, name=employee.name))
 
         # ── Direct shortcuts — bypass menus regardless of state ───────────────
         elif effective in (ID_CLOCK_IN, ID_CLOCK_OUT):
