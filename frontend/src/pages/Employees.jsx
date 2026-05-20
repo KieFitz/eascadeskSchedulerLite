@@ -339,7 +339,7 @@ export default function Employees() {
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
           <Input
-            label="NIF (optional)"
+            label="Employee ID / NIF (optional)"
             placeholder="e.g. 12345678A"
             value={form.nif}
             onChange={(e) => setForm({ ...form, nif: e.target.value })}
