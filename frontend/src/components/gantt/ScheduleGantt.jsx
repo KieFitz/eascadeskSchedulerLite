@@ -1069,7 +1069,7 @@ export default function ScheduleGantt({
 
   const allSkills = useMemo(() => {
     const s = new Set()
-    for (const emp of employeesArr) for (const sk of emp.skills ?? []) s.add(sk)
+    for (const emp of employeesArr) for (const sk of emp.skills ?? []) s.add(sk.toLowerCase())
     return [...s].sort()
   }, [employeesArr])
 

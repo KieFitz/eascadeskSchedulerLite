@@ -52,6 +52,10 @@ class AvailabilityOut(AvailabilityIn):
     model_config = {"from_attributes": True}
 
 
+def _normalise_skills(v: list[str]) -> list[str]:
+    return [s.strip().lower() for s in v if s.strip()]
+
+
 class EmployeeIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     phone: str
@@ -65,6 +69,11 @@ class EmployeeIn(BaseModel):
     @classmethod
     def _phone(cls, v: str) -> str:
         return _validate_phone(v)
+
+    @field_validator("skills")
+    @classmethod
+    def _skills(cls, v: list[str]) -> list[str]:
+        return _normalise_skills(v)
 
 
 class EmployeeUpdate(BaseModel):
@@ -80,6 +89,11 @@ class EmployeeUpdate(BaseModel):
     @classmethod
     def _phone(cls, v: str | None) -> str | None:
         return _validate_phone(v) if v is not None else None
+
+    @field_validator("skills")
+    @classmethod
+    def _skills(cls, v: list[str] | None) -> list[str] | None:
+        return _normalise_skills(v) if v is not None else None
 
 
 class EmployeeOut(BaseModel):

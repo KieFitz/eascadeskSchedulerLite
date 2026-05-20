@@ -85,8 +85,37 @@ export default function Employees() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+  const [skillInput, setSkillInput] = useState('')
   // Cache availability per employee so we don't re-fetch on collapse/expand
   const [availCache, setAvailCache] = useState({})
+
+  // All unique skills across all employees (lowercased, sorted)
+  const allSkills = [...new Set(
+    employees.flatMap((e) => e.skills.map((s) => s.toLowerCase()))
+  )].sort()
+
+  // Skills currently selected in the form as an array
+  const selectedSkills = form.skills
+    ? form.skills.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : []
+
+  const toggleSkill = (skill) => {
+    const lower = skill.toLowerCase()
+    const current = selectedSkills
+    const next = current.includes(lower)
+      ? current.filter((s) => s !== lower)
+      : [...current, lower]
+    setForm({ ...form, skills: next.join(', ') })
+  }
+
+  const addSkillFromInput = () => {
+    const trimmed = skillInput.trim().toLowerCase()
+    if (!trimmed) return
+    if (!selectedSkills.includes(trimmed)) {
+      setForm({ ...form, skills: [...selectedSkills, trimmed].join(', ') })
+    }
+    setSkillInput('')
+  }
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -104,6 +133,7 @@ export default function Employees() {
   const openCreate = () => {
     setEditingId(null)
     setForm(EMPTY_FORM)
+    setSkillInput('')
     setModalOpen(true)
   }
 
@@ -118,6 +148,7 @@ export default function Employees() {
       cost_per_hour: emp.cost_per_hour,
       is_active: emp.is_active,
     })
+    setSkillInput('')
     setModalOpen(true)
   }
 
@@ -128,7 +159,7 @@ export default function Employees() {
         name: form.name.trim(),
         phone: form.phone.trim(),
         nif: form.nif.trim() || null,
-        skills: form.skills.split(',').map((s) => s.trim()).filter(Boolean),
+        skills: form.skills.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
         min_hours_week: Number(form.min_hours_week) || 0,
         cost_per_hour: Number(form.cost_per_hour) || 0,
         is_active: form.is_active,
@@ -344,12 +375,58 @@ export default function Employees() {
             value={form.nif}
             onChange={(e) => setForm({ ...form, nif: e.target.value })}
           />
-          <Input
-            label="Skills (comma separated)"
-            placeholder="barista, cashier"
-            value={form.skills}
-            onChange={(e) => setForm({ ...form, skills: e.target.value })}
-          />
+          {/* Skills picker */}
+          <div>
+            <label className="block mb-1.5 text-xs font-semibold text-dark">Skills</label>
+            {/* Selected skill tags */}
+            {selectedSkills.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedSkills.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleSkill(s)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-brand-purple text-white hover:bg-opacity-80"
+                  >
+                    {s} <span className="text-white/70">×</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Existing skill suggestions */}
+            {allSkills.filter((s) => !selectedSkills.includes(s)).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {allSkills.filter((s) => !selectedSkills.includes(s)).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleSkill(s)}
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-muted hover:bg-brand-lavender hover:text-dark"
+                  >
+                    + {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Free-text input for new skills */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Type a new skill and press Enter"
+                value={skillInput}
+                onChange={(e) => setSkillInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkillFromInput() } }}
+                className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
+              />
+              <button
+                type="button"
+                onClick={addSkillFromInput}
+                className="px-3 py-1.5 rounded-lg bg-gray-100 text-sm text-muted hover:bg-brand-lavender hover:text-dark"
+              >
+                Add
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Min hours / week"

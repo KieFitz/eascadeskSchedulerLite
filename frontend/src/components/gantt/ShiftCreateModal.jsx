@@ -48,7 +48,7 @@ export default function ShiftCreateModal({
   const allSkills = useMemo(() => {
     const s = new Set()
     for (const emp of employees) {
-      for (const sk of emp.skills ?? []) s.add(sk)
+      for (const sk of emp.skills ?? []) s.add(sk.toLowerCase())
     }
     return [...s].sort()
   }, [employees])
