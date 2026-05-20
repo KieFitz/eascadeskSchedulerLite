@@ -20,7 +20,7 @@ import {
   createClockEventManual,
   deleteClockEvent,
   getClockEventAudit,
-  exportClockEventsCsv,
+  exportClockCsv,
   requestClockEventEdit,
 } from '../api/clock'
 import { listEmployees } from '../api/employees'
@@ -41,11 +41,13 @@ function formatDateTime(iso) {
 export default function ClockEvents() {
   const [events, setEvents]       = useState([])
   const [employees, setEmployees] = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [exporting, setExporting] = useState(false)
+  const [loading, setLoading]           = useState(true)
+  const [exporting, setExporting]       = useState(false)   // audit=false
+  const [compExporting, setCompExporting] = useState(false) // audit=true
 
   // Filters
   const [filterEmp,     setFilterEmp]     = useState('')
+  const [filterMonth,   setFilterMonth]   = useState('')    // YYYY-MM for exports
   const [filterFrom,    setFilterFrom]    = useState('')
   const [filterTo,      setFilterTo]      = useState('')
   const [showDeleted,   setShowDeleted]   = useState(false)
@@ -95,19 +97,20 @@ export default function ClockEvents() {
     fetchEvents().finally(() => setLoading(false))
   }, [fetchEvents])
 
-  const handleExportCsv = async () => {
-    setExporting(true)
+  const _downloadCsv = async (audit, setLoaderFn) => {
+    setLoaderFn(true)
     try {
-      const blob = await exportClockEventsCsv({
-        employeeId:     filterEmp  || undefined,
-        dateFrom:       filterFrom || undefined,
-        dateTo:         filterTo   || undefined,
-        includeDeleted: showDeleted,
+      const blob = await exportClockCsv({
+        employeeId: filterEmp   || undefined,
+        month:      filterMonth || undefined,
+        audit,
       })
+      const month   = filterMonth || new Date().toISOString().slice(0, 7)
+      const suffix  = audit ? 'compliance' : 'records'
       const url  = window.URL.createObjectURL(new Blob([blob]))
       const link = document.createElement('a')
       link.href  = url
-      link.download = `clock_events_${new Date().toISOString().slice(0, 10)}.csv`
+      link.download = `eascadesk_clock_${month.replace('-', '_')}_${suffix}.csv`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -115,9 +118,12 @@ export default function ClockEvents() {
     } catch {
       toast.error('Export failed')
     } finally {
-      setExporting(false)
+      setLoaderFn(false)
     }
   }
+
+  const handleExportRecords    = () => _downloadCsv(false, setExporting)
+  const handleExportCompliance = () => _downloadCsv(true,  setCompExporting)
 
   const openDeleteModal = (e) => {
     setDeleteTarget({ id: e.id, label: `${e.employee_name} — ${EVENT_LABEL[e.event_type] ?? e.event_type} at ${formatDateTime(e.event_at)}` })
@@ -212,9 +218,13 @@ export default function ClockEvents() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={handleExportCsv} loading={exporting}>
+            <Button variant="ghost" size="sm" onClick={handleExportRecords} loading={exporting}>
               <ArrowDownTrayIcon className="h-4 w-4" />
-              Export CSV
+              Export records
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleExportCompliance} loading={compExporting}>
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              Export for compliance
             </Button>
             <Button size="sm" onClick={() => setModalOpen(true)}>
               <PlusIcon className="h-4 w-4" />
@@ -236,6 +246,24 @@ export default function ClockEvents() {
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted">Month (export)</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
+            >
+              <option value="">All months</option>
+              {Array.from({ length: 13 }, (_, i) => {
+                const d = new Date()
+                d.setDate(1)
+                d.setMonth(d.getMonth() - i)
+                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                const label = d.toLocaleString(undefined, { year: 'numeric', month: 'long' })
+                return <option key={val} value={val}>{label}</option>
+              })}
             </select>
           </div>
           <div className="flex flex-col gap-1">
@@ -266,11 +294,11 @@ export default function ClockEvents() {
             />
             <label htmlFor="show-deleted" className="text-sm text-muted select-none">Show deleted</label>
           </div>
-          {(filterEmp || filterFrom || filterTo) && (
+          {(filterEmp || filterMonth || filterFrom || filterTo) && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { setFilterEmp(''); setFilterFrom(''); setFilterTo('') }}
+              onClick={() => { setFilterEmp(''); setFilterMonth(''); setFilterFrom(''); setFilterTo('') }}
             >
               Clear filters
             </Button>

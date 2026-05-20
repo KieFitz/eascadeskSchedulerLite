@@ -36,12 +36,11 @@ export async function requestClockEventEdit(eventId, { proposedEventAt, reason }
   return data
 }
 
-export async function exportClockEventsCsv({ employeeId, dateFrom, dateTo, includeDeleted } = {}) {
-  const params = {}
-  if (employeeId)     params.employee_id     = employeeId
-  if (dateFrom)       params.date_from       = dateFrom
-  if (dateTo)         params.date_to         = dateTo
-  if (includeDeleted) params.include_deleted = true
+// audit=false → standard export, audit=true → compliance export with full edit trail
+export async function exportClockCsv({ employeeId, month, audit = false } = {}) {
+  const params = { audit }
+  if (employeeId) params.employee_id = employeeId
+  if (month)      params.month       = month
   const response = await client.get('/clock/events/export.csv', { params, responseType: 'blob' })
   return response.data
 }
