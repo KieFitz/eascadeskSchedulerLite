@@ -394,6 +394,20 @@ def _send_clocked_in_menu(to: str, lang: str, clocked_in_msg: str) -> None:
     )
 
 
+def _send_on_break_menu(to: str, lang: str, break_started_msg: str) -> None:
+    """Send the break-started confirmation with End Break, Clock Out, and Back buttons."""
+    s = STRINGS[lang]
+    _send_button_message(
+        to,
+        body=break_started_msg,
+        buttons=[
+            {"id": ID_BREAK_END,  "title": s["opt_end_break"]},
+            {"id": ID_CLOCK_OUT,  "title": s["opt_clock_out"]},
+            {"id": ID_BACK,       "title": s["opt_back"]},
+        ],
+    )
+
+
 def _send_hours_menu(to: str, lang: str) -> None:
     s = STRINGS[lang]
     _send_button_message(
@@ -714,13 +728,13 @@ async def _handle_break(
     if payload == ID_BREAK_START:
         shift = await _find_shift_for_now(db, employee.id, tz_name)
         await _write_clock_event(db, employee.id, "break_start", raw, shift_assignment_id=shift.id if shift else None)
-        _send_text(to, _t(lang, "break_started", time=now_str))
-        session.state = "main_menu"
+        _send_on_break_menu(to, lang, _t(lang, "break_started", time=now_str))
+        session.state = "on_break"
     elif payload == ID_BREAK_END:
         shift = await _find_shift_for_now(db, employee.id, tz_name)
         await _write_clock_event(db, employee.id, "break_end", raw, shift_assignment_id=shift.id if shift else None)
-        _send_text(to, _t(lang, "break_ended", time=now_str))
-        session.state = "main_menu"
+        _send_clocked_in_menu(to, lang, _t(lang, "break_ended", time=now_str))
+        session.state = "clocked_in"
     elif payload == ID_BACK:
         _send_main_menu(to, employee.name, lang)
         session.state = "main_menu"
@@ -965,6 +979,18 @@ async def whatsapp_webhook(request: Request) -> Response:
                 now_str2 = _local_now(tz_name).strftime("%H:%M")
                 since2 = _to_local(last_at2, tz_name).strftime("%H:%M") if last_at2 else now_str2
                 _send_clocked_in_menu(phone, lang, _t(lang, "clocked_in", time=since2, name=employee.name))
+
+        # ── On-break state: End Break / Clock Out / Back buttons ─────────────
+        elif state == "on_break":
+            if effective == ID_BREAK_END:
+                await _handle_break(ID_BREAK_END, db, employee, session, payload, phone, tz_name)
+            elif effective == ID_CLOCK_OUT:
+                await _handle_direct_clock(ID_CLOCK_OUT, db, employee, session, payload, phone, tz_name)
+            elif effective == ID_BACK:
+                _send_main_menu(phone, employee.name, lang)
+                session.state = "main_menu"
+            else:
+                _send_on_break_menu(phone, lang, _t(lang, "break_started", time=_local_now(tz_name).strftime("%H:%M")))
 
         # ── Direct shortcuts — bypass menus regardless of state ───────────────
         elif effective in (ID_CLOCK_IN, ID_CLOCK_OUT):
