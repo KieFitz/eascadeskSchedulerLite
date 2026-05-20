@@ -576,6 +576,8 @@ def check_constraints(
             dur += 1440
         emp_week_hours[week_key] = emp_week_hours.get(week_key, 0.0) + dur / 60
 
+    # One violation per (employee, week) — use the first shift in that week as the anchor
+    reported_week_keys: set[tuple] = set()
     for a in assignments_data:
         eid   = a.get("employee_id")
         shift = shift_by_id.get(a.get("shift_id", ""))
@@ -583,8 +585,11 @@ def check_constraints(
             continue
         ic       = date.fromisoformat(shift["date"]).isocalendar()
         week_key = (eid, int(ic[0]), int(ic[1]))
+        if week_key in reported_week_keys:
+            continue
         total_h  = emp_week_hours.get(week_key, 0.0)
         if total_h > max_weekly_h:
+            reported_week_keys.add(week_key)
             emp      = emp_by_id.get(eid)
             emp_name = emp["name"] if emp else eid
             violations.append({

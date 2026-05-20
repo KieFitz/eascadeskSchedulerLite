@@ -5,9 +5,12 @@ import {
   ArrowLeftIcon,
   BoltIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   ExclamationTriangleIcon,
   GlobeAltIcon,
   ShieldCheckIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import Layout from '../components/layout/Layout'
 import Button from '../components/common/Button'
@@ -60,6 +63,90 @@ function SolvingBanner() {
       <div className="absolute bottom-0 left-0 h-0.5 w-full bg-teal-100" aria-hidden>
         <div className="h-full w-1/3 bg-teal-400 animate-progress" />
       </div>
+    </div>
+  )
+}
+
+// ── Violations panel ──────────────────────────────────────────────────────────
+function ViolationsPanel({ violations, shifts, onDismiss }) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  // Flatten violations map → array, enriched with shift time info
+  const shiftById = useMemo(() => {
+    const m = {}
+    for (const s of shifts) m[s.id] = s
+    return m
+  }, [shifts])
+
+  const items = useMemo(() => {
+    const rows = []
+    for (const [shiftId, vs] of Object.entries(violations)) {
+      const shift = shiftById[shiftId]
+      for (const v of vs) {
+        rows.push({ ...v, shiftId, shift })
+      }
+    }
+    // Hard violations first, then soft; within each group keep original order
+    rows.sort((a, b) => {
+      if (a.severity === b.severity) return 0
+      return a.severity === 'hard' ? -1 : 1
+    })
+    return rows
+  }, [violations, shiftById])
+
+  const hardCount = items.filter((v) => v.severity === 'hard').length
+  const softCount = items.length - hardCount
+
+  if (items.length === 0) return null
+
+  return (
+    <div className={`border-b ${hardCount > 0 ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+      {/* Header row */}
+      <div className="flex items-center justify-between px-4 py-2">
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex items-center gap-2 text-sm font-semibold leading-none focus:outline-none"
+        >
+          {hardCount > 0
+            ? <ExclamationTriangleIcon className="h-4 w-4 text-red-600 flex-shrink-0" />
+            : <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 flex-shrink-0" />}
+          <span className={hardCount > 0 ? 'text-red-700' : 'text-amber-700'}>
+            {hardCount > 0
+              ? `${hardCount} hard violation${hardCount !== 1 ? 's' : ''}${softCount > 0 ? ` · ${softCount} warning${softCount !== 1 ? 's' : ''}` : ''}`
+              : `${softCount} warning${softCount !== 1 ? 's' : ''}`}
+          </span>
+          {collapsed
+            ? <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400" />
+            : <ChevronUpIcon className="h-3.5 w-3.5 text-gray-400" />}
+        </button>
+        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 ml-2" title="Dismiss">
+          <XMarkIcon className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Violations list */}
+      {!collapsed && (
+        <div className="px-4 pb-3 max-h-56 overflow-y-auto space-y-1">
+          {items.map((v, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs py-1 border-t border-black/5 first:border-0">
+              <ExclamationTriangleIcon
+                className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${v.severity === 'hard' ? 'text-red-500' : 'text-amber-500'}`}
+              />
+              <div className="min-w-0">
+                <span className={`font-semibold mr-1 ${v.severity === 'hard' ? 'text-red-700' : 'text-amber-700'}`}>
+                  {v.rule}
+                </span>
+                <span className="text-gray-600">{v.message}</span>
+                {v.shift && (
+                  <span className="ml-1.5 text-gray-400">
+                    ({v.shift.date} {v.shift.start_time}–{v.shift.end_time})
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -493,6 +580,15 @@ export default function ScheduleEditor() {
 
         {/* Solving banner — shown above the Gantt while optimising */}
         {solving && <SolvingBanner />}
+
+        {/* Violations panel — shown after Validate */}
+        {!solving && violationCount > 0 && (
+          <ViolationsPanel
+            violations={violations}
+            shifts={shifts}
+            onDismiss={() => setViolations({})}
+          />
+        )}
 
         {/* Gantt — render whenever we have employees (shifts can be empty for builder schedules) */}
         {employees.length > 0 ? (
