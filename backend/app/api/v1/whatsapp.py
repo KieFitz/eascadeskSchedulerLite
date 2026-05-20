@@ -96,11 +96,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "lang_switch_hint": "_Escribe *hola* para español_",
         "main_menu_body": "👋 Hi *{name}*! What would you like to do?\n\n🕐 Clock in or out\n📅 View your schedule\n➕ More options",
         "main_menu_btn": "View options",
-        "fichar_body": "🕐 What would you like to do?\n\n✅ Start your shift\n👋 End your shift\n☕ Manage a break",
+        "fichar_body": "🕐 What would you like to do?\n\n✅ Start your shift\n👋 End your shift\n↩️ Back to main menu",
         "fichar_btn": "Select",
         "break_body": "☕ Break options:\n\n▶️ Start your break\n⏹️ End your break\n↩️ Go back",
         "break_btn": "Select",
-        "more_body": "➕ More options:\n\n🕐 See hours worked\n📆 Update availability\n↩️ Go back",
+        "more_body": "➕ More options:\n\n🕐 See hours worked\n☕ Manage a break\n↩️ Go back",
         "more_btn": "Select",
         "hours_body": "🕐 Which period?\n\n📅 Since Monday\n📆 Since 1st of the month\n↩️ Go back",
         "hours_btn": "Select",
@@ -164,11 +164,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "lang_switch_hint": "_Type *hi* for English_",
         "main_menu_body": "👋 ¡Hola *{name}*! ¿Qué quieres hacer?\n\n🕐 Fichar entrada o salida\n📅 Ver tu horario\n➕ Más opciones",
         "main_menu_btn": "Ver opciones",
-        "fichar_body": "🕐 ¿Qué quieres hacer?\n\n✅ Iniciar turno\n👋 Finalizar turno\n☕ Gestionar descanso",
+        "fichar_body": "🕐 ¿Qué quieres hacer?\n\n✅ Iniciar turno\n👋 Finalizar turno\n↩️ Volver al menú principal",
         "fichar_btn": "Seleccionar",
         "break_body": "☕ Opciones de descanso:\n\n▶️ Iniciar descanso\n⏹️ Finalizar descanso\n↩️ Volver",
         "break_btn": "Seleccionar",
-        "more_body": "➕ Más opciones:\n\n🕐 Ver horas trabajadas\n📆 Actualizar disponibilidad\n↩️ Volver",
+        "more_body": "➕ Más opciones:\n\n🕐 Ver horas trabajadas\n☕ Gestionar descanso\n↩️ Volver",
         "more_btn": "Seleccionar",
         "hours_body": "🕐 ¿Qué período?\n\n📅 Desde el lunes\n📆 Desde el día 1 del mes\n↩️ Volver",
         "hours_btn": "Seleccionar",
@@ -349,7 +349,7 @@ def _send_fichar_menu(to: str, lang: str) -> None:
         buttons=[
             {"id": ID_CLOCK_IN,  "title": s["opt_clock_in"]},
             {"id": ID_CLOCK_OUT, "title": s["opt_clock_out"]},
-            {"id": ID_BREAK,     "title": s["opt_break"]},
+            {"id": ID_BACK,      "title": s["opt_back"]},
         ],
     )
 
@@ -373,9 +373,9 @@ def _send_more_menu(to: str, lang: str) -> None:
         to,
         body=s["more_body"],
         buttons=[
-            {"id": ID_HOURS,        "title": s["opt_hours"]},
-            {"id": ID_AVAILABILITY, "title": s["opt_availability"]},
-            {"id": ID_BACK,         "title": s["opt_back"]},
+            {"id": ID_HOURS,  "title": s["opt_hours"]},
+            {"id": ID_BREAK,  "title": s["opt_break"]},
+            {"id": ID_BACK,   "title": s["opt_back"]},
         ],
     )
 
@@ -676,9 +676,9 @@ async def _handle_clock(
         await _write_clock_event(db, employee.id, "out", raw, shift_assignment_id=shift.id if shift else None)
         _send_text(to, _t(lang, "clocked_out", time=now_str, name=employee.name, summary=summary))
         session.state = "main_menu"
-    elif payload == ID_BREAK:
-        _send_break_menu(to, lang)
-        session.state = "break"
+    elif payload == ID_BACK:
+        _send_main_menu(to, employee.name, lang)
+        session.state = "main_menu"
     else:
         _send_fichar_menu(to, lang)
 
@@ -706,8 +706,8 @@ async def _handle_break(
         _send_text(to, _t(lang, "break_ended", time=now_str))
         session.state = "main_menu"
     elif payload == ID_BACK:
-        _send_fichar_menu(to, lang)
-        session.state = "fichar"
+        _send_main_menu(to, employee.name, lang)
+        session.state = "main_menu"
     else:
         _send_break_menu(to, lang)
 
@@ -967,9 +967,9 @@ async def whatsapp_webhook(request: Request) -> Response:
             await _handle_break(effective, db, employee, session, payload, phone, tz_name)
 
         elif state == "more":
-            if effective == ID_AVAILABILITY:
-                _send_text(phone, _t(lang, "availability_soon"))
-                session.state = "main_menu"
+            if effective == ID_BREAK:
+                _send_break_menu(phone, lang)
+                session.state = "break"
             elif effective == ID_BACK:
                 _send_main_menu(phone, employee.name, lang)
                 session.state = "main_menu"
