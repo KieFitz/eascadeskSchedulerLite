@@ -13,6 +13,7 @@ import Button from '../components/common/Button'
 import Spinner from '../components/common/Spinner'
 import EmptyState from '../components/common/EmptyState'
 import Badge from '../components/common/Badge'
+import Select from '../components/common/Select'
 import Modal from '../components/common/Modal'
 import Input from '../components/common/Input'
 import {
@@ -237,34 +238,32 @@ export default function ClockEvents() {
         <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted">Employee</label>
-            <select
+            <Select
+              size="sm"
               value={filterEmp}
-              onChange={(e) => setFilterEmp(e.target.value)}
-              className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            >
-              <option value="">All employees</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
+              onChange={setFilterEmp}
+              placeholder="All employees"
+              options={[
+                ...employees.map((e) => ({ value: e.id, label: e.name })),
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted">Month (export)</label>
-            <select
+            <Select
+              size="sm"
               value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            >
-              <option value="">All months</option>
-              {Array.from({ length: 13 }, (_, i) => {
+              onChange={setFilterMonth}
+              placeholder="All months"
+              options={Array.from({ length: 13 }, (_, i) => {
                 const d = new Date()
                 d.setDate(1)
                 d.setMonth(d.getMonth() - i)
                 const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
                 const label = d.toLocaleString(undefined, { year: 'numeric', month: 'long' })
-                return <option key={val} value={val}>{label}</option>
+                return { value: val, label }
               })}
-            </select>
+            />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted">From</label>
@@ -408,32 +407,22 @@ export default function ClockEvents() {
       {/* Manual entry modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Manual clock entry">
         <div className="space-y-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-dark">
-              Employee <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={manualForm.employeeId}
-              onChange={(e) => setManualForm({ ...manualForm, employeeId: e.target.value })}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            >
-              <option value="">Select employee…</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-dark">Event type</label>
-            <select
-              value={manualForm.eventType}
-              onChange={(e) => setManualForm({ ...manualForm, eventType: e.target.value })}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            >
-              <option value="in">Clock in</option>
-              <option value="out">Clock out</option>
-            </select>
-          </div>
+          <Select
+            label={<>Employee <span className="text-red-500">*</span></>}
+            value={manualForm.employeeId}
+            onChange={(v) => setManualForm({ ...manualForm, employeeId: v })}
+            placeholder="Select employee…"
+            options={employees.map((emp) => ({ value: emp.id, label: emp.name }))}
+          />
+          <Select
+            label="Event type"
+            value={manualForm.eventType}
+            onChange={(v) => setManualForm({ ...manualForm, eventType: v })}
+            options={[
+              { value: 'in', label: 'Clock in' },
+              { value: 'out', label: 'Clock out' },
+            ]}
+          />
           <Input
             label="Date & time (leave blank for now)"
             type="datetime-local"

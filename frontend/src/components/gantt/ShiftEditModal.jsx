@@ -9,6 +9,7 @@ import {
 import Modal from '../common/Modal'
 import Button from '../common/Button'
 import Spinner from '../common/Spinner'
+import Select from '../common/Select'
 import { format, parseISO } from 'date-fns'
 
 // Score badge colour
@@ -136,19 +137,16 @@ export default function ShiftEditModal({
       })()}
 
       {/* Employee selector */}
-      <label className="block mb-1 text-xs font-semibold text-dark">Assign to</label>
-      <select
+      <Select
+        label="Assign to"
         value={selectedEmpId}
-        onChange={(e) => setSelectedEmpId(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
-      >
-        <option value="">— Unassigned —</option>
-        {employees.map((emp) => (
-          <option key={emp.id} value={emp.id}>
-            {emp.name}{emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''}
-          </option>
-        ))}
-      </select>
+        onChange={setSelectedEmpId}
+        placeholder="— Unassigned —"
+        options={employees.map((emp) => ({
+          value: emp.id,
+          label: emp.name + (emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''),
+        }))}
+      />
 
       {/* Replacement finder */}
       {onFindSubstitutes && (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Modal from '../common/Modal'
 import Button from '../common/Button'
+import Select from '../common/Select'
 import { createBuilderSchedule, listSchedules } from '../../api/schedules'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -187,21 +188,16 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
             <label className="block text-xs font-medium text-muted mb-1">
               Copy shifts from <span className="text-gray-400">(optional)</span>
             </label>
-            <select
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple bg-white"
+            <Select
               value={copyFromId}
-              onChange={(e) => setCopyFromId(e.target.value)}
-            >
-              <option value="">— Start blank —</option>
-              {prevRuns.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name
-                    ? `${r.name} (${r.date_from})`
-                    : `${r.date_from} → ${r.date_to}`}
-                  {' '}· {r.shifts_data.length} shift{r.shifts_data.length !== 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setCopyFromId}
+              placeholder="— Start blank —"
+              options={prevRuns.map((r) => ({
+                value: r.id,
+                label: (r.name ? `${r.name} (${r.date_from})` : `${r.date_from} → ${r.date_to}`)
+                  + ` · ${r.shifts_data.length} shift${r.shifts_data.length !== 1 ? 's' : ''}`,
+              }))}
+            />
             {copyFromId && (
               <p className="text-xs text-muted mt-1">
                 Shift times and skills will be copied; dates will be moved to match the new start date. Assignments are cleared so you can re-assign or auto-schedule.

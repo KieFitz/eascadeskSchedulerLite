@@ -12,6 +12,7 @@ import Layout from '../components/layout/Layout'
 import Button from '../components/common/Button'
 import Input from '../components/common/Input'
 import Modal from '../components/common/Modal'
+import Select from '../components/common/Select'
 import Spinner from '../components/common/Spinner'
 import EmptyState from '../components/common/EmptyState'
 import Badge from '../components/common/Badge'
@@ -526,7 +527,6 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
     }
   }
 
-  const sel = 'rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple'
 
   return (
     <div>
@@ -581,30 +581,39 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {/* Type */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted">Type</label>
-            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={sel}>
-              <option value="preferred">Preferred</option>
-              <option value="unpreferred">Unpreferred</option>
-              <option value="unavailable">Unavailable</option>
-            </select>
+            <Select
+              size="sm"
+              value={form.type}
+              onChange={(v) => setForm({ ...form, type: v })}
+              options={[
+                { value: 'preferred', label: 'Preferred' },
+                { value: 'unpreferred', label: 'Unpreferred' },
+                { value: 'unavailable', label: 'Unavailable' },
+              ]}
+            />
           </div>
 
           {/* Applies to */}
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted">Applies to</label>
-            <select value={form.applies} onChange={(e) => setForm({ ...form, applies: e.target.value })} className={sel}>
-              {APPLIES_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <Select
+              size="sm"
+              value={form.applies}
+              onChange={(v) => setForm({ ...form, applies: v })}
+              options={APPLIES_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
           </div>
 
           {/* Day picker — only when applies == 'dow' */}
           {form.applies === 'dow' && (
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted">Day</label>
-              <select value={form.day_of_week} onChange={(e) => setForm({ ...form, day_of_week: e.target.value })} className={sel}>
-                {DAYS.map((d, i) => <option key={d} value={i}>{DAY_FULL[i]}</option>)}
-              </select>
+              <Select
+                size="sm"
+                value={form.day_of_week}
+                onChange={(v) => setForm({ ...form, day_of_week: v })}
+                options={DAYS.map((d, i) => ({ value: i, label: DAY_FULL[i] }))}
+              />
             </div>
           )}
 

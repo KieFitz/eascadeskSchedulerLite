@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import Modal from '../common/Modal'
 import Button from '../common/Button'
+import Select from '../common/Select'
 import { format, parseISO } from 'date-fns'
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -187,19 +188,16 @@ export default function ShiftCreateModal({
 
       {/* Employee assignment (optional) */}
       <div className="mb-4">
-        <label className="block mb-1 text-xs font-semibold text-dark">Assign employee (optional)</label>
-        <select
+        <Select
+          label="Assign employee (optional)"
           value={selectedEmpId}
-          onChange={(e) => setSelectedEmpId(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
-        >
-          <option value="">— Leave unassigned —</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.name}{emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''}
-            </option>
-          ))}
-        </select>
+          onChange={setSelectedEmpId}
+          placeholder="— Leave unassigned —"
+          options={employees.map((emp) => ({
+            value: emp.id,
+            label: emp.name + (emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''),
+          }))}
+        />
       </div>
 
       {/* Repeat */}

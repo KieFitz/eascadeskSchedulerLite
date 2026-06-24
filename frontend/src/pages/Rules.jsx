@@ -3,6 +3,7 @@ import { CheckCircleIcon, ClockIcon, GlobeAltIcon } from '@heroicons/react/24/ou
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import Layout from '../components/layout/Layout'
 import Button from '../components/common/Button'
+import Select from '../components/common/Select'
 import { useAuth } from '../context/AuthContext'
 import { updateSettings } from '../api/auth'
 import { useTranslations } from '../i18n'
@@ -153,16 +154,12 @@ export default function Rules() {
               <p className="text-sm text-muted leading-relaxed mb-3">
                 Times shown to employees in WhatsApp messages (clock-in/out confirmations) use this timezone.
               </p>
-              <select
+              <Select
                 value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent"
-              >
-                <option value="">— Select timezone —</option>
-                {TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>{tz.label}</option>
-                ))}
-              </select>
+                onChange={setTimezone}
+                placeholder="— Select timezone —"
+                options={TIMEZONES.map((tz) => ({ value: tz.value, label: tz.label }))}
+              />
             </div>
           </div>
         </div>

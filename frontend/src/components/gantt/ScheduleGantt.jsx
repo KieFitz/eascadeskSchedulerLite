@@ -13,6 +13,7 @@ import {
 } from '@heroicons/react/24/outline'
 import ShiftEditModal from './ShiftEditModal'
 import ShiftCreateModal from './ShiftCreateModal'
+import Select from '../common/Select'
 import Modal from '../common/Modal'
 import Button from '../common/Button'
 
@@ -592,16 +593,14 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                     <div className="flex-shrink-0 flex items-center gap-2">
                       {editable ? (
                         <>
-                          <select
+                          <Select
+                            size="sm"
                             value={a.employee_id || ''}
-                            onChange={(e) => onReassign(a.shift_id, e.target.value || null)}
-                            className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-dark bg-white focus:outline-none focus:ring-1 focus:ring-brand-purple/40"
-                          >
-                            <option value="">Unassigned</option>
-                            {employees.map((emp) => (
-                              <option key={emp.id} value={emp.id}>{emp.name}</option>
-                            ))}
-                          </select>
+                            onChange={(v) => onReassign(a.shift_id, v || null)}
+                            placeholder="Unassigned"
+                            options={employees.map((emp) => ({ value: emp.id, label: emp.name }))}
+                            className="min-w-[120px]"
+                          />
                           <button
                             onClick={() => onClickEditShift(a)}
                             className="p-1 rounded hover:bg-gray-100 text-muted hover:text-dark transition-colors"
@@ -724,18 +723,19 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
 
       {/* Assign all */}
       <div className="mb-5">
-        <label className="block mb-1 text-xs font-semibold text-dark">Assign all to <span className="font-normal text-muted">(optional)</span></label>
-        <select value={empId} onChange={(e) => setEmpId(e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
-        >
-          <option value="">— Leave as-is —</option>
-          <option value="__unassign__">Unassign all</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.name}{emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''}
-            </option>
-          ))}
-        </select>
+        <Select
+          label={<>Assign all to <span className="font-normal text-muted">(optional)</span></>}
+          value={empId}
+          onChange={setEmpId}
+          placeholder="— Leave as-is —"
+          options={[
+            { value: '__unassign__', label: 'Unassign all' },
+            ...employees.map((emp) => ({
+              value: emp.id,
+              label: emp.name + (emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''),
+            })),
+          ]}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-2">
