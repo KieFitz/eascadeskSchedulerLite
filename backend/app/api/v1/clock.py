@@ -19,6 +19,15 @@ from app.models.whatsapp_session import WhatsAppSession
 router = APIRouter(prefix="/clock", tags=["clock"])
 
 
+def _fmt_dt(iso: str) -> str:
+    """Format an ISO datetime string as '24 Jun 2026, 11:30'."""
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.strftime("%-d %b %Y, %H:%M")
+    except Exception:
+        return iso
+
+
 def _event_snapshot(e: ClockEvent) -> dict:
     return {
         "employee_id":         e.employee_id,
@@ -773,7 +782,7 @@ async def resolve_clock_event_edit(
             clock_event_id=event.id,
             action="edit",
             actor_user=None,
-            reason=f"Employee approved edit via WhatsApp. Original: {old_snapshot['event_at']}",
+            reason=f"Employee approved edit via WhatsApp. Original: {_fmt_dt(old_snapshot['event_at'])}",
             snapshot={**old_snapshot, "new_event_at": edit_req.proposed_event_at.isoformat()},
         )
 
