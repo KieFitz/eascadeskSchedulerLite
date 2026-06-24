@@ -335,7 +335,7 @@ export default function ClockEvents() {
                     className={`hover:bg-gray-50/60 ${e.deleted_at ? 'opacity-50' : ''}`}
                   >
                     <td className="px-4 py-3 font-medium text-dark">{e.employee_name}</td>
-                    <td className="px-4 py-3 text-muted font-mono text-xs">{e.employee_phone}</td>
+                    <td className="px-4 py-3 text-muted font-roboto text-xs">{e.employee_phone}</td>
                     <td className="px-4 py-3">
                       <Badge colour={EVENT_COLOUR[e.event_type] ?? 'gray'}>
                         {EVENT_LABEL[e.event_type] ?? e.event_type}
@@ -472,7 +472,7 @@ export default function ClockEvents() {
             with your user ID and timestamp.
           </p>
           {deleteTarget && (
-            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
+            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
               {deleteTarget.label}
             </p>
           )}
@@ -503,7 +503,7 @@ export default function ClockEvents() {
       >
         {auditEvent && (
           <div className="space-y-4">
-            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
+            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
               {auditEvent.label}
             </p>
             {auditLoading ? (
@@ -575,7 +575,7 @@ export default function ClockEvents() {
             The original time is unchanged until they approve.
           </p>
           {editTarget && (
-            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-mono">
+            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
               {editTarget.label}
             </p>
           )}

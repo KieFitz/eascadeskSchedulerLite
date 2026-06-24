@@ -122,7 +122,7 @@ export default function OvertimeReport() {
                             )}
                             {emp.name}
                           </td>
-                          <td className="text-right py-2 px-4 font-mono text-dark">{emp.total_hours}</td>
+                          <td className="text-right py-2 px-4 font-roboto text-dark">{emp.total_hours}</td>
                           <td className="text-right py-2 px-4 text-dark">{emp.total_shifts}</td>
                           <td className={`text-right py-2 pl-4 font-semibold ${emp.exceeds_48h_week ? 'text-amber-700' : 'text-dark'}`}>
                             {emp.avg_hours_per_week}

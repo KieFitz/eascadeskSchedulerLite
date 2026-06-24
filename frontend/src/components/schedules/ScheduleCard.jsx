@@ -113,7 +113,7 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
         {run.score_info && (
           <>
             <span>·</span>
-            <span className="font-mono">{run.score_info}</span>
+            <span className="font-roboto">{run.score_info}</span>
           </>
         )}
       </div>

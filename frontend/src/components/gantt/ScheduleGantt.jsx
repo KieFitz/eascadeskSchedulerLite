@@ -57,7 +57,7 @@ function ShiftTooltip({ tip }) {
     >
       {/* Time + date */}
       <div>
-        <p className="font-mono font-semibold text-sm leading-tight">
+        <p className="font-roboto font-semibold text-sm leading-tight">
           {a.start_time} – {a.end_time}
         </p>
         <p className="text-white/60 text-[11px]">{formattedDate}</p>
@@ -580,7 +580,7 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                       {hasViolation && (
                         <ExclamationTriangleIcon className="h-3.5 w-3.5 text-red-500 flex-shrink-0" title={shiftViolations.map(v => v.message).join('\n')} />
                       )}
-                      <span className="font-mono text-xs font-semibold text-dark">
+                      <span className="font-roboto text-xs font-semibold text-dark">
                         {a.start_time} – {a.end_time}
                       </span>
                     </div>
@@ -687,7 +687,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
   return (
     <Modal open title="Edit all shifts of this type" onClose={onClose} size="sm">
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-xs text-muted">
-        <p className="font-mono font-semibold text-dark text-sm">{type.label}</p>
+        <p className="font-roboto font-semibold text-dark text-sm">{type.label}</p>
         <p>{count} shift{count !== 1 ? 's' : ''} across the schedule — all will be updated.</p>
       </div>
 
@@ -878,7 +878,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
               onClick={editable ? () => onClickEditShiftType(type) : undefined}
               title={editable ? 'Click to edit all shifts of this type' : undefined}
             >
-              <p className="text-xs font-mono font-semibold text-dark">{type.label}</p>
+              <p className="text-xs font-roboto font-semibold text-dark">{type.label}</p>
               {type.required_skills.length > 0 ? (
                 <SkillChips skills={type.required_skills} />
               ) : (

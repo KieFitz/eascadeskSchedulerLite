@@ -277,7 +277,7 @@ export default function Employees() {
                           </button>
                         </td>
                         <td className="px-4 py-3 font-medium text-dark">{emp.name}</td>
-                        <td className="px-4 py-3 text-muted font-mono text-xs">{emp.phone}</td>
+                        <td className="px-4 py-3 text-muted font-roboto text-xs">{emp.phone}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
                             {emp.skills.length === 0
@@ -554,7 +554,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
                   <Badge colour={AVAIL_COLOUR[r.type]}>{r.type}</Badge>
                 </td>
                 <td className="py-1.5 pr-4 font-medium text-dark">{ruleLabel(r)}</td>
-                <td className="py-1.5 pr-4 font-mono text-muted">
+                <td className="py-1.5 pr-4 font-roboto text-muted">
                   {minutesToHHMM(r.start_min) === '00:00' && minutesToHHMM(r.end_min) === '23:59'
                     ? 'All day'
                     : `${minutesToHHMM(r.start_min)} – ${minutesToHHMM(r.end_min)}`}

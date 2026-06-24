@@ -82,7 +82,7 @@ export default function ShiftEditModal({
       {/* Shift info */}
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-sm">
         <div className="flex items-center justify-between">
-          <span className="font-mono font-semibold text-dark">
+          <span className="font-roboto font-semibold text-dark">
             {assignment.start_time} – {assignment.end_time}
           </span>
           {assignment.source === 'SOLVER' ? (
