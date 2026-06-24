@@ -223,7 +223,6 @@ export default function Employees() {
       <div className="bg-white rounded-xl shadow-soft">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="font-semibold text-dark">Roster</h2>
             <p className="text-xs text-muted mt-0.5">
               Persistent employee directory. Phone numbers identify employees with the WhatsApp clock-in bot.
             </p>
