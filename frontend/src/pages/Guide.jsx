@@ -32,15 +32,17 @@ const Note = ({ children }) => (
 )
 
 const QUICK_REF = [
-  { action: 'Build or view a schedule',        location: 'Part 1 — Building a schedule',          anchor: 'schedules'  },
-  { action: 'Add or edit an employee',          location: 'Part 2 — Managing your employee roster', anchor: 'employees'  },
-  { action: 'Set employee availability',        location: 'Part 2 — Managing your employee roster', anchor: 'employees'  },
-  { action: 'View clock-in / clock-out records',location: 'Part 3 — Clock in / clock out',          anchor: 'clock'      },
-  { action: 'Manually add a clock record',      location: 'Part 3 — Clock in / clock out',          anchor: 'clock'      },
-  { action: 'Correct a clock time',             location: 'Part 3 — Clock in / clock out',          anchor: 'clock'      },
-  { action: 'Export hours to a spreadsheet',    location: 'Part 3 — Clock in / clock out',          anchor: 'clock'      },
-  { action: 'Change timezone or scheduling rules', location: 'Part 4 — Rules and settings',         anchor: 'rules'      },
-  { action: 'Spanish compliance requirements',  location: 'Part 5 — Compliance (Spain)',            anchor: 'compliance' },
+  { action: 'Build or view a schedule',              location: 'Part 1 — Building a schedule',           anchor: 'schedules'    },
+  { action: 'Add or edit an employee',               location: 'Part 2 — Managing your employee roster', anchor: 'employees'    },
+  { action: 'Set employee availability',             location: 'Part 2 — Managing your employee roster', anchor: 'employees'    },
+  { action: 'Send employee a preferences link',      location: 'Part 2 — Managing your employee roster', anchor: 'employees'    },
+  { action: 'View clock-in / clock-out records',     location: 'Part 3 — Clock in / clock out',          anchor: 'clock'        },
+  { action: 'Manually add a clock record',           location: 'Part 3 — Clock in / clock out',          anchor: 'clock'        },
+  { action: 'Correct a clock time',                  location: 'Part 3 — Clock in / clock out',          anchor: 'clock'        },
+  { action: 'Export hours to a spreadsheet',         location: 'Part 3 — Clock in / clock out',          anchor: 'clock'        },
+  { action: 'Employee submits their own preferences',location: 'Part 4 — Employee availability via WhatsApp', anchor: 'availability' },
+  { action: 'Change timezone or scheduling rules',   location: 'Part 5 — Rules and settings',            anchor: 'rules'        },
+  { action: 'Spanish compliance requirements',       location: 'Part 6 — Compliance (Spain)',            anchor: 'compliance'   },
 ]
 
 export default function Guide() {
@@ -63,12 +65,13 @@ export default function Guide() {
           </p>
           <nav className="mt-4 flex flex-wrap gap-2" aria-label="Guide sections">
             {[
-              { label: 'Schedules',   anchor: 'schedules'      },
-              { label: 'Employees',   anchor: 'employees'      },
-              { label: 'Clock in/out',anchor: 'clock'          },
-              { label: 'Rules',       anchor: 'rules'          },
-              { label: 'Compliance',  anchor: 'compliance'     },
-              { label: 'Quick ref',   anchor: 'quick-reference'},
+              { label: 'Schedules',    anchor: 'schedules'      },
+              { label: 'Employees',    anchor: 'employees'      },
+              { label: 'Clock in/out', anchor: 'clock'          },
+              { label: 'Availability', anchor: 'availability'   },
+              { label: 'Rules',        anchor: 'rules'          },
+              { label: 'Compliance',   anchor: 'compliance'     },
+              { label: 'Quick ref',    anchor: 'quick-reference'},
             ].map(({ label, anchor }) => (
               <a
                 key={anchor}
@@ -200,8 +203,67 @@ export default function Guide() {
           </Tip>
         </Section>
 
-        {/* Part 4 — Rules & Settings */}
-        <Section id="rules" title="Part 4 — Rules and settings">
+        {/* Part 4 — Employee availability via WhatsApp */}
+        <Section id="availability" title="Part 4 — Employee availability via WhatsApp">
+          <p className="text-sm text-muted">
+            Employees can submit their own working-time preferences directly from their phone — no
+            app install required. The WhatsApp bot sends them a one-time personal link that opens a
+            simple web form.
+          </p>
+
+          <div className="space-y-4 pt-1">
+            <Step number="1" title="How the employee gets the link">
+              The employee sends a WhatsApp message to the business number and selects{' '}
+              <strong>More options</strong>, then <strong>Availability</strong>. The bot replies with
+              a personal link valid for 2 hours. Tapping the link opens the preferences form directly
+              in their phone browser — no login needed.
+            </Step>
+            <Step number="2" title="What the employee sees">
+              The form shows two tabs: <strong>Add Preference</strong> and{' '}
+              <strong>Current Preferences</strong>. On the Add tab, the employee chooses a preference
+              type and when it applies, then saves it.
+            </Step>
+            <Step number="3" title="Preference types">
+              Employees can mark a time as <strong>Prefer to work</strong> (shown in teal) or{' '}
+              <strong>Prefer not to work</strong> (shown in amber). The auto-assign solver uses these
+              when building schedules.
+            </Step>
+            <Step number="4" title="When it applies">
+              Each preference can apply to:
+              <ul className="list-disc list-inside mt-1.5 space-y-1">
+                <li>Every weekday (Mon–Fri)</li>
+                <li>Every weekend (Sat–Sun)</li>
+                <li>Every day</li>
+                <li>A specific day of the week (e.g. every Tuesday)</li>
+                <li>A specific date (e.g. 2025-08-15)</li>
+              </ul>
+            </Step>
+            <Step number="5" title="Setting the time range">
+              The employee can toggle <strong>All day</strong> to cover the whole day, or tap the
+              time chips to open a drum-scroll picker and choose a precise start and end time.
+            </Step>
+            <Step number="6" title="Removing a preference">
+              On the <strong>Current Preferences</strong> tab, the employee can tap the trash icon
+              next to any rule to delete it immediately.
+            </Step>
+            <Step number="7" title="Where preferences appear for the manager">
+              Once saved, the preference is visible in the employee's availability panel on the
+              Employees page. The auto-assign solver reads it the next time you run a schedule.
+            </Step>
+          </div>
+
+          <Tip>
+            Preferences set for a <strong>specific date</strong> that has already passed are ignored
+            by the solver — the system automatically expires them.
+          </Tip>
+          <Note>
+            The one-time link expires after 2 hours and can only be used once. If the employee needs
+            to make more changes later, they request a new link through WhatsApp.
+          </Note>
+        </Section>
+
+        {/* Part 5 — Rules & Settings */}
+        <Section id="rules" title="Part 5 — Rules and settings">
           <p className="text-sm text-muted">
             The Rules page lets you set your timezone and configure how the scheduler works.
           </p>
@@ -219,8 +281,8 @@ export default function Guide() {
           </div>
         </Section>
 
-        {/* Part 5 — Compliance */}
-        <Section id="compliance" title="Part 5 — Compliance (Spain)">
+        {/* Part 6 — Compliance */}
+        <Section id="compliance" title="Part 6 — Compliance (Spain)">
           <p className="text-sm text-muted">
             If you operate in Spain, the clock-in system is designed to meet the requirements of
             Real Decreto-ley 8/2019, which requires employers to keep a daily record of working hours.
