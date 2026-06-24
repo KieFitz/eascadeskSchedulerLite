@@ -773,7 +773,10 @@ async def resolve_clock_event_edit(
         )
 
     await db.commit()
-    return {"status": edit_req.status}
+    return {
+        "status": edit_req.status,
+        "proposed_event_at": edit_req.proposed_event_at.isoformat() if edit_req.proposed_event_at else None,
+    }
 
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)

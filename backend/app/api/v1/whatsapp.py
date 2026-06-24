@@ -864,12 +864,24 @@ async def _handle_edit_confirm(
                 params={"approved": "true" if is_yes else "false"},
                 timeout=10,
             )
-        resolved_status = resp.json().get("status", "unknown") if resp.status_code == 200 else None
+        resp_json = resp.json() if resp.status_code == 200 else {}
+        resolved_status = resp_json.get("status", "unknown") if resp.status_code == 200 else None
+        proposed_event_at = resp_json.get("proposed_event_at")
     except Exception:
         resolved_status = None
+        proposed_event_at = None
 
     if resolved_status == "approved":
-        _send_text(to, STRINGS[lang].get("edit_approved", "✅ Time correction approved."))
+        if proposed_event_at:
+            try:
+                import datetime as _dt
+                dt = _dt.datetime.fromisoformat(proposed_event_at)
+                new_str = dt.strftime("%d/%m/%Y %H:%M")
+            except Exception:
+                new_str = proposed_event_at
+        else:
+            new_str = "—"
+        _send_text(to, STRINGS[lang].get("edit_approved", "✅ Time correction approved to *{new}*.").format(new=new_str))
     elif resolved_status == "rejected":
         _send_text(to, STRINGS[lang].get("edit_rejected", "❌ Time correction rejected."))
     else:
