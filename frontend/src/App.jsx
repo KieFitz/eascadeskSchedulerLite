@@ -9,6 +9,7 @@ import Pricing from './pages/Pricing'
 import Employees from './pages/Employees'
 import ClockEvents from './pages/ClockEvents'
 import Guide from './pages/Guide'
+import AvailabilityPage from './pages/AvailabilityPage'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -91,6 +92,9 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+
+      {/* Employee self-service availability — public, authenticated by one-time token */}
+      <Route path="/availability" element={<AvailabilityPage />} />
 
       {/* Legacy / root → schedules list */}
       <Route path="/" element={<Navigate to="/schedules" replace />} />

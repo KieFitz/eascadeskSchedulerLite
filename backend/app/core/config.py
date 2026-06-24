@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Set to "true" to skip webhook signature validation (local dev / ngrok)
     META_SKIP_SIGNATURE: str = "false"
 
+    # Public-facing frontend URL — used to build one-time availability links sent via WhatsApp
+    FRONTEND_URL: str = "https://scheduler-lite.eascadesk.ie"
+
     # Comma-separated allowed CORS origins.
     # e.g. "https://d123.cloudfront.net,http://localhost:5173"
     ALLOWED_ORIGINS: str = "http://localhost:5173,https://scheduler-lite.eascadesk.ie"

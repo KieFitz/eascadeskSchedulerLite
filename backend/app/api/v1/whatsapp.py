@@ -95,7 +95,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "hours_worked": "🕐 You've worked *{hours}h {mins}m* {period}, {name}.",
         "this_week": "this week",
         "this_month": "this month",
-        "availability_soon": "🔜 Availability management via WhatsApp is coming soon. Visit the app to update your availability.",
+        "availability_link": "📅 Here's your personal link to update your availability preferences:\n{url}\n\nThe link is valid for 2 hours. Tap it to open the form.",
+        "availability_link_error": "⚠️ Sorry, we couldn't generate your availability link right now. Please try again later.",
         "lang_switch_hint": "_Escribe *hola* para español_",
         "main_menu_body": "👋 Hi *{name}*! What would you like to do?\n\n🕐 Clock in or out\n📅 View your schedule\n➕ More options",
         "main_menu_btn": "View options",
@@ -103,7 +104,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "fichar_btn": "Select",
         "break_body": "☕ Break options:\n\n▶️ Start your break\n⏹️ End your break\n↩️ Go back",
         "break_btn": "Select",
-        "more_body": "➕ More options:\n\n🕐 See hours worked\n☕ Manage a break\n↩️ Go back",
+        "more_body": "➕ More options:\n\n🕐 See hours worked\n📅 Update availability\n↩️ Go back",
         "more_btn": "Select",
         "hours_body": "🕐 Which period?\n\n📅 Since Monday\n📆 Since 1st of the month\n↩️ Go back",
         "hours_btn": "Select",
@@ -112,7 +113,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "opt_schedule": "My Schedule",
         "opt_schedule_desc": "View your upcoming shifts",
         "opt_more": "More",
-        "opt_more_desc": "Hours worked & availability",
+        "opt_more_desc": "Hours & availability",
         "opt_clock_in": "Clock In",
         "opt_clock_in_desc": "Start your shift",
         "opt_clock_out": "Clock Out",
@@ -165,7 +166,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "hours_worked": "🕐 Has trabajado *{hours}h {mins}m* {period}, {name}.",
         "this_week": "esta semana",
         "this_month": "este mes",
-        "availability_soon": "🔜 La gestión de disponibilidad por WhatsApp estará disponible pronto. Visita la app para actualizar tu disponibilidad.",
+        "availability_link": "📅 Aquí tienes tu enlace personal para actualizar tus preferencias de disponibilidad:\n{url}\n\nEl enlace es válido durante 2 horas. Tócalo para abrir el formulario.",
+        "availability_link_error": "⚠️ Lo sentimos, no pudimos generar tu enlace ahora mismo. Por favor, inténtalo más tarde.",
         "lang_switch_hint": "_Type *hi* for English_",
         "main_menu_body": "👋 ¡Hola *{name}*! ¿Qué quieres hacer?\n\n🕐 Fichar entrada o salida\n📅 Ver tu horario\n➕ Más opciones",
         "main_menu_btn": "Ver opciones",
@@ -173,7 +175,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "fichar_btn": "Seleccionar",
         "break_body": "☕ Opciones de descanso:\n\n▶️ Iniciar descanso\n⏹️ Finalizar descanso\n↩️ Volver",
         "break_btn": "Seleccionar",
-        "more_body": "➕ Más opciones:\n\n🕐 Ver horas trabajadas\n☕ Gestionar descanso\n↩️ Volver",
+        "more_body": "➕ Más opciones:\n\n🕐 Ver horas trabajadas\n📅 Actualizar disponibilidad\n↩️ Volver",
         "more_btn": "Seleccionar",
         "hours_body": "🕐 ¿Qué período?\n\n📅 Desde el lunes\n📆 Desde el día 1 del mes\n↩️ Volver",
         "hours_btn": "Seleccionar",
@@ -378,9 +380,9 @@ def _send_more_menu(to: str, lang: str) -> None:
         to,
         body=s["more_body"],
         buttons=[
-            {"id": ID_HOURS,  "title": s["opt_hours"]},
-            {"id": ID_BREAK,  "title": s["opt_break"]},
-            {"id": ID_BACK,   "title": s["opt_back"]},
+            {"id": ID_HOURS,        "title": s["opt_hours"]},
+            {"id": ID_AVAILABILITY, "title": s["opt_availability"]},
+            {"id": ID_BACK,         "title": s["opt_back"]},
         ],
     )
 
@@ -894,6 +896,34 @@ async def _handle_edit_confirm(
     session.state = "main_menu"
 
 
+# ── Availability link handler ─────────────────────────────────────────────────
+
+async def _handle_availability(employee: Employee, to: str, lang: str) -> None:
+    """Generate a one-time availability token and send the URL to the employee."""
+    import uuid as _uuid_mod
+    import datetime as _dt
+    from app.models.availability_token import AvailabilityToken
+    from app.core.config import settings as _settings
+
+    try:
+        async with AsyncSessionLocal() as db:
+            now = _dt.datetime.now(_dt.timezone.utc)
+            tok = AvailabilityToken(
+                id=str(_uuid_mod.uuid4()),
+                token=str(_uuid_mod.uuid4()),
+                employee_id=employee.id,
+                expires_at=now + _dt.timedelta(hours=2),
+            )
+            db.add(tok)
+            await db.commit()
+            token_value = tok.token
+
+        url = f"{_settings.FRONTEND_URL}/availability?token={token_value}"
+        _send_text(to, _t(lang, "availability_link", url=url))
+    except Exception:
+        _send_text(to, _t(lang, "availability_link_error"))
+
+
 # ── Schedule publish notification ────────────────────────────────────────────
 
 async def send_schedule_published_notifications(run_id: str, user_id: str) -> None:
@@ -1097,6 +1127,10 @@ async def whatsapp_webhook(request: Request) -> Response:
             await _handle_schedule(db, employee, phone, lang)
             session.state = "main_menu"
 
+        elif effective == ID_AVAILABILITY:
+            await _handle_availability(employee, phone, lang)
+            session.state = "main_menu"
+
         # ── Top-level menu navigation ─────────────────────────────────────────
         elif effective == ID_FICHAR:
             _send_fichar_menu(phone, lang)
@@ -1122,9 +1156,9 @@ async def whatsapp_webhook(request: Request) -> Response:
             await _handle_break(effective, db, employee, session, payload, phone, tz_name)
 
         elif state == "more":
-            if effective == ID_BREAK:
-                _send_break_menu(phone, lang)
-                session.state = "break"
+            if effective == ID_AVAILABILITY:
+                await _handle_availability(employee, phone, lang)
+                session.state = "main_menu"
             elif effective == ID_BACK:
                 _send_main_menu(phone, employee.name, lang)
                 session.state = "main_menu"

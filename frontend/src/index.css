@@ -24,4 +24,10 @@
     scrollbar-width: thin;
     scrollbar-color: #D8C4FF transparent;
   }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

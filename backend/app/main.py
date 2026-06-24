@@ -21,6 +21,7 @@ import app.models.shift_definition  # noqa: F401
 import app.models.shift_assignment  # noqa: F401
 import app.models.clock_event  # noqa: F401  (registers ClockEvent, ClockEventAuditLog, ClockEventEditRequest)
 import app.models.whatsapp_session  # noqa: F401
+import app.models.availability_token  # noqa: F401
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
