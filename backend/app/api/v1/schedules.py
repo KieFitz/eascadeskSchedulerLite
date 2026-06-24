@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timezone
 from typing import Optional
 
@@ -357,6 +358,11 @@ async def publish_schedule(
     run.published_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(run)
+
+    # Fire-and-forget WhatsApp notifications — import here to avoid circular imports
+    from app.api.v1.whatsapp import send_schedule_published_notifications
+    asyncio.create_task(send_schedule_published_notifications(run_id, current_user.id))
+
     return run
 
 

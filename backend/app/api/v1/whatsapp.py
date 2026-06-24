@@ -80,6 +80,8 @@ def _to_local(dt: datetime.datetime, tz_name: str | None) -> datetime.datetime:
 STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "not_registered": "⛔ Your number is not registered. Contact your manager.",
+        "schedule_published": "📅 *New schedule published!* Here are your upcoming shifts, {name}:\n\n{shifts}\n\nReply *schedule* anytime to check again.",
+        "schedule_published_no_shifts": "📅 *New schedule published!* You have no shifts assigned in this schedule, {name}.",
         "clocked_in": "✅ Clocked in at *{time}*. Have a great shift, {name}!\n\nYou can start a break or clock out when you're ready.",
         "already_clocked_in": "⚠️ You appear to already be clocked in since *{time}*. Did you mean to clock out? Reply *yes* or *no*.",
         "clocked_out": "👋 Clocked out at *{time}*. See you next time, {name}!\n{summary}",
@@ -148,6 +150,8 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "es": {
         "not_registered": "⛔ Tu número no está registrado. Contacta con tu responsable.",
+        "schedule_published": "📅 *¡Nuevo horario publicado!* Tus próximos turnos, {name}:\n\n{shifts}\n\nEscribe *horario* cuando quieras consultarlo de nuevo.",
+        "schedule_published_no_shifts": "📅 *¡Nuevo horario publicado!* No tienes turnos asignados en este horario, {name}.",
         "clocked_in": "✅ Fichaje de entrada a las *{time}*. ¡Que tengas un buen turno, {name}!\n\nPuedes iniciar un descanso o fichar salida cuando quieras.",
         "already_clocked_in": "⚠️ Parece que ya fichaste entrada a las *{time}*. ¿Querías fichar salida? Responde *sí* o *no*.",
         "clocked_out": "👋 Fichaje de salida a las *{time}*. ¡Hasta pronto, {name}!\n{summary}",
@@ -888,6 +892,72 @@ async def _handle_edit_confirm(
         _send_text(to, STRINGS[lang].get("edit_not_found", "This request has already been resolved."))
 
     session.state = "main_menu"
+
+
+# ── Schedule publish notification ────────────────────────────────────────────
+
+async def send_schedule_published_notifications(run_id: str, user_id: str) -> None:
+    """
+    Called (fire-and-forget) when a schedule is published.
+    Sends each active employee with a phone number their shifts from this run.
+    Uses the employee's stored WhatsApp language preference if available.
+    """
+    import datetime as _dt
+
+    async with AsyncSessionLocal() as db:
+        # Fetch the schedule run
+        run_result = await db.execute(
+            select(ScheduleRun).where(ScheduleRun.id == run_id, ScheduleRun.user_id == user_id)
+        )
+        run = run_result.scalar_one_or_none()
+        if not run or not run.result_data:
+            return
+
+        assignments: list[dict] = run.result_data.get("assignments", [])
+        today_str = str(_dt.date.today())
+
+        # Fetch all active employees for this manager that have a phone number
+        emp_result = await db.execute(
+            select(Employee).where(
+                Employee.user_id == user_id,
+                Employee.is_active == True,  # noqa: E712
+                Employee.phone.isnot(None),
+                Employee.phone != "",
+            )
+        )
+        employees = emp_result.scalars().all()
+
+        for employee in employees:
+            # Look up language preference from session
+            session_result = await db.execute(
+                select(WhatsAppSession).where(WhatsAppSession.employee_id == employee.id)
+            )
+            session = session_result.scalar_one_or_none()
+            lang = session.language if session else "en"
+
+            # Gather this employee's shifts from the run (future dates only)
+            emp_shifts = sorted(
+                [
+                    a for a in assignments
+                    if a.get("employee_id") == employee.id and (a.get("date") or "") >= today_str
+                ],
+                key=lambda a: (a.get("date", ""), a.get("start_time", "")),
+            )
+
+            try:
+                if emp_shifts:
+                    lines = []
+                    for a in emp_shifts:
+                        d = _dt.date.fromisoformat(a["date"])
+                        lines.append(f"• {d.strftime('%a %d %b')}  {a['start_time']}–{a['end_time']}")
+                    msg = _t(lang, "schedule_published", name=employee.name, shifts="\n".join(lines))
+                else:
+                    msg = _t(lang, "schedule_published_no_shifts", name=employee.name)
+
+                _send_text(employee.phone, msg)
+            except Exception:
+                # Never let one failed send block the rest
+                pass
 
 
 # ── Webhook verification (GET) ────────────────────────────────────────────────
