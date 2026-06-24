@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db, require_pro_plan
@@ -150,14 +150,16 @@ async def list_clock_events(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
     include_deleted: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(require_pro_plan),
     db: AsyncSession = Depends(get_db),
 ):
-    """List clock events. Deleted events hidden by default."""
+    """List clock events with pagination. Deleted events hidden by default."""
     emp_ids, emp_map = await _build_emp_map(db, current_user.id)
 
     if not emp_ids:
-        return []
+        return {"total": 0, "items": []}
 
     if employee_id:
         if employee_id not in emp_ids:
@@ -166,29 +168,32 @@ async def list_clock_events(
     else:
         filter_ids = emp_ids
 
-    query = select(ClockEvent).where(ClockEvent.employee_id.in_(filter_ids))
+    base_query = select(ClockEvent).where(ClockEvent.employee_id.in_(filter_ids))
 
     if not include_deleted:
-        query = query.where(ClockEvent.deleted_at.is_(None))
+        base_query = base_query.where(ClockEvent.deleted_at.is_(None))
 
     if date_from:
-        query = query.where(
+        base_query = base_query.where(
             ClockEvent.event_at >= datetime(date_from.year, date_from.month, date_from.day, tzinfo=timezone.utc)
         )
     if date_to:
-        query = query.where(
+        base_query = base_query.where(
             ClockEvent.event_at < datetime(date_to.year, date_to.month, date_to.day + 1, tzinfo=timezone.utc)
         )
 
-    query = query.order_by(ClockEvent.event_at.desc())
-    result = await db.execute(query)
+    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
+    total = count_result.scalar_one()
+
+    paged_query = base_query.order_by(ClockEvent.event_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(paged_query)
     events = result.scalars().all()
 
     rows = []
     for e in events:
         pending = await _pending_edit_for(db, e.id)
         rows.append(_serialize_event(e, emp_map, pending))
-    return rows
+    return {"total": total, "items": rows}
 
 
 @router.get("/events/export.csv")

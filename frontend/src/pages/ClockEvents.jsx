@@ -41,17 +41,22 @@ function formatDateTime(iso) {
 
 export default function ClockEvents() {
   const [events, setEvents]       = useState([])
+  const [total, setTotal]         = useState(0)
   const [employees, setEmployees] = useState([])
   const [loading, setLoading]           = useState(true)
-  const [exporting, setExporting]       = useState(false)   // audit=false
-  const [compExporting, setCompExporting] = useState(false) // audit=true
+  const [exporting, setExporting]       = useState(false)
+  const [compExporting, setCompExporting] = useState(false)
 
   // Filters
   const [filterEmp,     setFilterEmp]     = useState('')
-  const [filterMonth,   setFilterMonth]   = useState('')    // YYYY-MM for exports
+  const [filterMonth,   setFilterMonth]   = useState('')
   const [filterFrom,    setFilterFrom]    = useState('')
   const [filterTo,      setFilterTo]      = useState('')
   const [showDeleted,   setShowDeleted]   = useState(false)
+
+  // Pagination
+  const [page,    setPage]    = useState(0)
+  const [perPage, setPerPage] = useState(50)
 
   // Manual event modal
   const [modalOpen, setModalOpen]   = useState(false)
@@ -59,39 +64,47 @@ export default function ClockEvents() {
   const [saving, setSaving]         = useState(false)
 
   // Delete confirmation modal
-  const [deleteTarget, setDeleteTarget]   = useState(null)  // { id, label }
+  const [deleteTarget, setDeleteTarget]   = useState(null)
   const [deleteReason, setDeleteReason]   = useState('')
   const [deleting, setDeleting]           = useState(false)
 
   // Edit request modal
-  const [editTarget, setEditTarget]       = useState(null)  // { id, label, currentEventAt }
+  const [editTarget, setEditTarget]       = useState(null)
   const [editForm, setEditForm]           = useState({ proposedEventAt: '', reason: '' })
   const [editSaving, setEditSaving]       = useState(false)
 
   // Audit trail panel
-  const [auditEvent, setAuditEvent]   = useState(null)  // { id, label }
+  const [auditEvent, setAuditEvent]   = useState(null)
   const [auditLog, setAuditLog]       = useState([])
   const [auditLoading, setAuditLoading] = useState(false)
 
   const fetchEvents = useCallback(async () => {
     try {
-      const data = await listClockEvents({
+      const { total: t, items } = await listClockEvents({
         employeeId:     filterEmp  || undefined,
         dateFrom:       filterFrom || undefined,
         dateTo:         filterTo   || undefined,
         includeDeleted: showDeleted,
+        limit:          perPage,
+        offset:         page * perPage,
       })
-      setEvents(data)
+      setTotal(t)
+      setEvents(items)
     } catch (err) {
       toast.error(err?.response?.data?.detail ?? 'Failed to load clock events')
     }
-  }, [filterEmp, filterFrom, filterTo, showDeleted])
+  }, [filterEmp, filterFrom, filterTo, showDeleted, perPage, page])
 
   useEffect(() => {
     listEmployees()
       .then(setEmployees)
       .catch(() => {})
   }, [])
+
+  // Reset to page 0 when filters or page size change (page itself is excluded)
+  useEffect(() => {
+    setPage(0)
+  }, [filterEmp, filterFrom, filterTo, showDeleted, perPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setLoading(true)
@@ -235,73 +248,87 @@ export default function ClockEvents() {
         </div>
 
         {/* Filters */}
-        <div className="px-6 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-end">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">Employee</label>
-            <Select
-              size="sm"
-              value={filterEmp}
-              onChange={setFilterEmp}
-              placeholder="All employees"
-              options={[
-                ...employees.map((e) => ({ value: e.id, label: e.name })),
-              ]}
-            />
+        <div className="px-6 py-3 border-b border-gray-100">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">Employee</label>
+              <Select
+                size="sm"
+                value={filterEmp}
+                onChange={setFilterEmp}
+                placeholder="All employees"
+                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">Month (export)</label>
+              <Select
+                size="sm"
+                value={filterMonth}
+                onChange={setFilterMonth}
+                placeholder="All months"
+                options={Array.from({ length: 13 }, (_, i) => {
+                  const d = new Date()
+                  d.setDate(1)
+                  d.setMonth(d.getMonth() - i)
+                  const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                  const label = d.toLocaleString(undefined, { year: 'numeric', month: 'long' })
+                  return { value: val, label }
+                })}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">From</label>
+              <input
+                type="date"
+                value={filterFrom}
+                onChange={(e) => setFilterFrom(e.target.value)}
+                className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">To</label>
+              <input
+                type="date"
+                value={filterTo}
+                onChange={(e) => setFilterTo(e.target.value)}
+                className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted">Rows per page</label>
+              <Select
+                size="sm"
+                value={String(perPage)}
+                onChange={(v) => setPerPage(Number(v))}
+                options={[
+                  { value: '50', label: '50 rows' },
+                  { value: '100', label: '100 rows' },
+                ]}
+              />
+            </div>
+            <div className="flex items-end gap-3 pb-0.5">
+              <div className="flex items-center gap-2">
+                <input
+                  id="show-deleted"
+                  type="checkbox"
+                  checked={showDeleted}
+                  onChange={(e) => setShowDeleted(e.target.checked)}
+                  className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
+                />
+                <label htmlFor="show-deleted" className="text-sm text-muted select-none whitespace-nowrap">Show deleted</label>
+              </div>
+              {(filterEmp || filterMonth || filterFrom || filterTo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setFilterEmp(''); setFilterMonth(''); setFilterFrom(''); setFilterTo('') }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">Month (export)</label>
-            <Select
-              size="sm"
-              value={filterMonth}
-              onChange={setFilterMonth}
-              placeholder="All months"
-              options={Array.from({ length: 13 }, (_, i) => {
-                const d = new Date()
-                d.setDate(1)
-                d.setMonth(d.getMonth() - i)
-                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-                const label = d.toLocaleString(undefined, { year: 'numeric', month: 'long' })
-                return { value: val, label }
-              })}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">From</label>
-            <input
-              type="date"
-              value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">To</label>
-            <input
-              type="date"
-              value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
-              className="rounded-lg border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            />
-          </div>
-          <div className="flex items-center gap-2 pb-0.5">
-            <input
-              id="show-deleted"
-              type="checkbox"
-              checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
-              className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
-            />
-            <label htmlFor="show-deleted" className="text-sm text-muted select-none">Show deleted</label>
-          </div>
-          {(filterEmp || filterMonth || filterFrom || filterTo) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setFilterEmp(''); setFilterMonth(''); setFilterFrom(''); setFilterTo('') }}
-            >
-              Clear filters
-            </Button>
-          )}
         </div>
 
         {/* Table */}
@@ -396,10 +423,46 @@ export default function ClockEvents() {
                 ))}
               </tbody>
             </table>
-            <p className="px-6 py-3 text-xs text-muted border-t border-gray-100">
-              {events.length} event{events.length !== 1 ? 's' : ''}
-              {showDeleted && ' (including deleted)'}
-            </p>
+            {/* Pagination footer */}
+            <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs text-muted">
+                Showing {total === 0 ? 0 : page * perPage + 1}–{Math.min((page + 1) * perPage, total)} of {total} event{total !== 1 ? 's' : ''}
+                {showDeleted && ' (including deleted)'}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(0)}
+                  disabled={page === 0}
+                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                >
+                  ‹
+                </button>
+                <span className="px-3 py-1 text-xs text-dark">
+                  Page {page + 1} of {Math.max(1, Math.ceil(total / perPage))}
+                </span>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={(page + 1) * perPage >= total}
+                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                >
+                  ›
+                </button>
+                <button
+                  onClick={() => setPage(Math.ceil(total / perPage) - 1)}
+                  disabled={(page + 1) * perPage >= total}
+                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                >
+                  »
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

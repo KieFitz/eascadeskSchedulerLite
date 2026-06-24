@@ -1,12 +1,13 @@
 import client from './client'
 
-export async function listClockEvents({ employeeId, dateFrom, dateTo, includeDeleted } = {}) {
-  const params = {}
+export async function listClockEvents({ employeeId, dateFrom, dateTo, includeDeleted, limit = 50, offset = 0 } = {}) {
+  const params = { limit, offset }
   if (employeeId)     params.employee_id     = employeeId
   if (dateFrom)       params.date_from       = dateFrom
   if (dateTo)         params.date_to         = dateTo
   if (includeDeleted) params.include_deleted = true
   const { data } = await client.get('/clock/events', { params })
+  // data = { total: number, items: [...] }
   return data
 }
 
