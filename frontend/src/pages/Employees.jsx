@@ -625,7 +625,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
                 type="date"
                 value={form.specific_date}
                 onChange={(e) => setForm({ ...form, specific_date: e.target.value })}
-                className={sel}
+                className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150"
               />
             </div>
           )}
@@ -635,11 +635,11 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
             <>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-muted">From</label>
-                <input type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} className={sel} />
+                <input type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-muted">To</label>
-                <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} className={sel} />
+                <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150" />
               </div>
             </>
           )}
