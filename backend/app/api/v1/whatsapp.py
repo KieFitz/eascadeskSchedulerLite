@@ -56,6 +56,14 @@ ID_HOURS_WEEK = "hours_week"
 ID_HOURS_MONTH = "hours_month"
 ID_BACK = "back"
 
+# Raw internal IDs sent verbatim when an employee taps an interactive button.
+# These are language-neutral and must never trigger a language switch.
+_RAW_IDS = {
+    ID_FICHAR, ID_SCHEDULE, ID_MORE, ID_CLOCK_IN, ID_CLOCK_OUT, ID_BREAK,
+    ID_BREAK_START, ID_BREAK_END, ID_HOURS, ID_AVAILABILITY,
+    ID_HOURS_WEEK, ID_HOURS_MONTH, ID_BACK,
+}
+
 SESSION_TTL_MINUTES = 30
 DEFAULT_TZ = "Europe/Dublin"
 
@@ -95,7 +103,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "hours_worked": "🕐 You've worked *{hours}h {mins}m* {period}, {name}.",
         "this_week": "this week",
         "this_month": "this month",
-        "availability_link": "📅 Here's your personal link to update your availability preferences:\n{url}\n\nThe link is valid for 2 hours. Tap it to open the form.",
+        "availability_link": "📅 Here's your personal link to update your availability preferences:\n{url}\n\nThe link is valid for 15 minutes. Tap it to open the form.",
         "availability_link_error": "⚠️ Sorry, we couldn't generate your availability link right now. Please try again later.",
         "lang_switch_hint": "_Escribe *hola* para español_",
         "main_menu_body": "👋 Hi *{name}*! What would you like to do?\n\n🕐 Clock in or out\n📅 View your schedule\n➕ More options",
@@ -166,7 +174,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "hours_worked": "🕐 Has trabajado *{hours}h {mins}m* {period}, {name}.",
         "this_week": "esta semana",
         "this_month": "este mes",
-        "availability_link": "📅 Aquí tienes tu enlace personal para actualizar tus preferencias de disponibilidad:\n{url}\n\nEl enlace es válido durante 2 horas. Tócalo para abrir el formulario.",
+        "availability_link": "📅 Aquí tienes tu enlace personal para actualizar tus preferencias de disponibilidad:\n{url}\n\nEl enlace es válido durante 15 minutos. Tócalo para abrir el formulario.",
         "availability_link_error": "⚠️ Lo sentimos, no pudimos generar tu enlace ahora mismo. Por favor, inténtalo más tarde.",
         "lang_switch_hint": "_Type *hi* for English_",
         "main_menu_body": "👋 ¡Hola *{name}*! ¿Qué quieres hacer?\n\n🕐 Fichar entrada o salida\n📅 Ver tu horario\n➕ Más opciones",
@@ -222,10 +230,16 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 }
 
-# Spanish trigger words — any of these in the body switches to Spanish
-_ES_TRIGGERS = {"hola", "fichar", "horario", "semana", "mes", "turno", "horas", "entrada", "entrar", "salida", "salir", "descanso", "español", "espanol"}
+# Spanish trigger words — any of these in the body switches to Spanish.
+# Includes the Spanish display-title aliases so that selecting a Spanish menu
+# option (sent as free text) also switches the session language.
+_ES_TRIGGERS = {
+    "hola", "fichar", "horario", "semana", "mes", "turno", "horas",
+    "entrada", "entrar", "salida", "salir", "descanso", "español", "espanol",
+    "más", "mas", "disponibilidad", "iniciar", "finalizar", "volver", "sí",
+}
 # English trigger words — switches back to English
-_EN_TRIGGERS = {"hi", "hello", "menu", "english"}
+_EN_TRIGGERS = {"hi", "hello", "menu", "english", "back", "availability", "schedule"}
 
 
 def _t(lang: str, key: str, **kwargs: object) -> str:
@@ -465,10 +479,14 @@ async def _get_or_create_session(db, employee_id: str) -> WhatsAppSession:
 
 def _detect_language(body_lower: str, current_lang: str) -> str:
     """Return "es" or "en" based on trigger words in the inbound message.
-    Skip detection for button/menu IDs — they contain Spanish words but are
-    not typed by the user so should not trigger a language switch.
+
+    Raw button-tap IDs (e.g. "clock_out", "schedule", "back") are language-
+    neutral: tapping a localized button sends its internal id, which must not
+    change the session language. But typed/selected display titles such as
+    "salida" or "iniciar descanso" should switch to Spanish even though they
+    also resolve to a routing ID, so trigger detection runs for everything else.
     """
-    if _body_to_id(body_lower):
+    if body_lower in _RAW_IDS:
         return current_lang
     words = set(body_lower.split())
     if words & _ES_TRIGGERS:
@@ -912,7 +930,7 @@ async def _handle_availability(employee: Employee, to: str, lang: str) -> None:
                 id=str(_uuid_mod.uuid4()),
                 token=str(_uuid_mod.uuid4()),
                 employee_id=employee.id,
-                expires_at=now + _dt.timedelta(hours=2),
+                expires_at=now + _dt.timedelta(minutes=15),
             )
             db.add(tok)
             await db.commit()
@@ -1122,6 +1140,12 @@ async def whatsapp_webhook(request: Request) -> Response:
         # ── Direct shortcuts — bypass menus regardless of state ───────────────
         elif effective in (ID_CLOCK_IN, ID_CLOCK_OUT):
             await _handle_direct_clock(effective, db, employee, session, payload, phone, tz_name)
+
+        elif effective in (ID_BREAK_START, ID_BREAK_END):
+            await _handle_break(effective, db, employee, session, payload, phone, tz_name)
+
+        elif effective in (ID_HOURS_WEEK, ID_HOURS_MONTH):
+            await _handle_hours(effective, db, employee, session, phone, tz_name)
 
         elif effective == ID_SCHEDULE:
             await _handle_schedule(db, employee, phone, lang)
