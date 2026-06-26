@@ -8,9 +8,11 @@ Flow:
      The frontend fetches GET /api/v1/availability/me?token=<uuid> to load their rules.
   3. Employee adds/removes rules via POST/DELETE /api/v1/availability/me[/{id}]?token=<uuid>
 
-Tokens are single-use for writes: after the first POST or DELETE, used_at is stamped
-and further writes return 409. Reads always work while the token is unexpired.
-Past specific_date rules are automatically cleaned up on GET.
+Tokens are valid for multiple reads and writes until they expire (15 minutes
+from creation), so an employee can submit several preference changes from the
+same link. used_at records the first write for audit purposes only — it does
+not block subsequent writes. Past specific_date rules are automatically cleaned
+up on GET.
 """
 
 import datetime
@@ -37,7 +39,10 @@ async def _resolve_token(
 ) -> tuple[AvailabilityToken, Employee]:
     """
     Validate the token and return (AvailabilityToken, Employee).
-    Pass write=True to also reject already-used tokens (enforces single-use for writes).
+
+    Tokens stay valid for any number of reads and writes until they expire;
+    the `write` flag is kept for call-site clarity but no longer rejects
+    previously-used tokens.
     """
     result = await db.execute(
         select(AvailabilityToken).where(AvailabilityToken.token == token)
@@ -52,12 +57,6 @@ async def _resolve_token(
 
     if now > expires:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This link has expired")
-
-    if write and tok.used_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This link has already been used. Request a new one via WhatsApp.",
-        )
 
     emp_result = await db.get(Employee, tok.employee_id)
     if emp_result is None or not emp_result.is_active:
@@ -91,7 +90,7 @@ async def create_availability_token(
         id=str(_uuid.uuid4()),
         token=str(_uuid.uuid4()),
         employee_id=employee_id,
-        expires_at=now + datetime.timedelta(hours=2),
+        expires_at=now + datetime.timedelta(minutes=15),
     )
     db.add(tok)
     await db.commit()
@@ -151,7 +150,7 @@ async def add_my_availability(
     token: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Add an availability rule. Token is single-use — rejected after first write."""
+    """Add an availability rule. Token may be reused until it expires (2 hours)."""
     tok, employee = await _resolve_token(token, db, write=True)
 
     rule = EmployeeAvailability(employee_id=employee.id, **body.model_dump())
@@ -174,7 +173,7 @@ async def delete_my_availability(
     token: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete one of the employee's availability rules. Token is single-use."""
+    """Delete one of the employee's availability rules. Token may be reused until it expires."""
     tok, employee = await _resolve_token(token, db, write=True)
 
     result = await db.execute(
