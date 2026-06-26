@@ -116,7 +116,7 @@ function DrumColumn({ items, value, onChange }) {
   return (
     <div className="relative flex-1">
       {/* selection band */}
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 h-[48px] border-t border-b border-white/25 z-10" />
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-[48px] border-t border-b border-white/25 z-10" />
 
       <div
         ref={ref}
@@ -128,7 +128,7 @@ function DrumColumn({ items, value, onChange }) {
         onMouseUp={commit}
         onTouchEnd={commit}
         className="h-[192px] overflow-y-scroll scrollbar-none"
-        style={{ scrollSnapType: 'y mandatory' }}
+        style={{ scrollSnapType: 'y mandatory', scrollPaddingTop: ITEM_H * 2 }}
       >
         <div style={{ height: ITEM_H * 2 }} />
         {items.map((item) => (
@@ -139,7 +139,7 @@ function DrumColumn({ items, value, onChange }) {
               const i = items.indexOf(item)
               ref.current?.scrollTo({ top: i * ITEM_H, behavior: 'smooth' })
             }}
-            style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
+            style={{ height: ITEM_H, scrollSnapAlign: 'start' }}
             className={[
               'flex items-center justify-center text-3xl font-semibold cursor-pointer select-none transition-colors duration-150',
               item === value ? 'text-white' : 'text-white/20',
@@ -318,7 +318,7 @@ export default function AvailabilityPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-dark flex items-center justify-center">
         <Spinner size="lg" />
       </div>
     )
@@ -326,7 +326,7 @@ export default function AvailabilityPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-dark flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-dark flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
           <p className="text-3xl mb-4">⚠️</p>
           <p className="font-semibold text-white mb-2">Link not valid</p>
@@ -337,21 +337,21 @@ export default function AvailabilityPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-dark to-[#1e1b4b] px-4 pb-12">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-brand-dark to-[#1e1b4b] px-3 pb-12">
       {/* Header */}
-      <div className="max-w-lg mx-auto pt-8 pb-6">
+      <div className="w-full lg:max-w-2xl lg:mx-auto pt-8 pb-6">
         <p className="text-brand-purple-light font-bold text-xl">My Availability</p>
         <p className="text-brand-purple-light/50 text-sm mt-0.5">Hi {name} — update your preferences below</p>
       </div>
 
       {/* Saved banner */}
       {saved && (
-        <div className="max-w-lg mx-auto mb-5">
+        <div className="w-full lg:max-w-2xl lg:mx-auto mb-5">
           <p className="text-brand-teal text-sm font-medium">✅ Changes saved</p>
         </div>
       )}
 
-      <div className="max-w-lg mx-auto">
+      <div className="w-full lg:max-w-2xl lg:mx-auto">
         <Tabs active={tab} onChange={setTab} />
 
         {/* ── ADD TAB ─────────────────────────────────────────────────────── */}
@@ -361,7 +361,7 @@ export default function AvailabilityPage() {
             {/* Type picker */}
             <div>
               <FieldLabel>I want to…</FieldLabel>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {[
                   { value: 'preferred',   label: 'Prefer to work',     emoji: '✅' },
                   { value: 'unpreferred', label: 'Prefer not to work', emoji: '⚠️' },
@@ -442,7 +442,7 @@ export default function AvailabilityPage() {
             {!form.allDay && (
               <div>
                 <FieldLabel>Time range</FieldLabel>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <TimeChip
                     label="From"
                     value={`${form.startH}:${form.startM}`}
@@ -503,7 +503,7 @@ export default function AvailabilityPage() {
                       <div
                         key={r.id}
                         className={[
-                          'flex items-center justify-between gap-3 py-3',
+                          'flex items-center justify-between gap-3 py-3 sm:py-4',
                           i < g.items.length - 1 ? 'border-b border-white/10' : '',
                         ].join(' ')}
                       >
