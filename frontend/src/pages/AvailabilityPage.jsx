@@ -285,8 +285,8 @@ export default function AvailabilityPage() {
     } catch (err) {
       const status = err?.response?.status
       const detail = err?.response?.data?.detail
-      if (status === 409) {
-        setError(detail ?? 'This link has already been used. Request a new one via WhatsApp.')
+      if (status === 401) {
+        setError(detail ?? 'This link has expired. Request a new one via WhatsApp.')
       } else {
         setAddError(detail ?? 'Failed to add rule. Please try again.')
       }
@@ -304,8 +304,8 @@ export default function AvailabilityPage() {
     } catch (err) {
       const status = err?.response?.status
       const detail = err?.response?.data?.detail
-      if (status === 409) {
-        setError(detail ?? 'This link has already been used. Request a new one via WhatsApp.')
+      if (status === 401) {
+        setError(detail ?? 'This link has expired. Request a new one via WhatsApp.')
       } else {
         setAddError(detail ?? 'Failed to remove rule.')
       }

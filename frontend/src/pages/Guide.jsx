@@ -215,7 +215,7 @@ export default function Guide() {
             <Step number="1" title="How the employee gets the link">
               The employee sends a WhatsApp message to the business number and selects{' '}
               <strong>More options</strong>, then <strong>Availability</strong>. The bot replies with
-              a personal link valid for 2 hours. Tapping the link opens the preferences form directly
+              a personal link valid for 15 minutes. Tapping the link opens the preferences form directly
               in their phone browser — no login needed.
             </Step>
             <Step number="2" title="What the employee sees">
@@ -257,8 +257,8 @@ export default function Guide() {
             by the solver — the system automatically expires them.
           </Tip>
           <Note>
-            The one-time link expires after 2 hours and can only be used once. If the employee needs
-            to make more changes later, they request a new link through WhatsApp.
+            The link expires 15 minutes after it's issued. Within that window the employee can make
+            as many changes as they like. After it expires, they request a new link through WhatsApp.
           </Note>
         </Section>
 

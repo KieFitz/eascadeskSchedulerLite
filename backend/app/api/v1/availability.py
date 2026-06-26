@@ -3,7 +3,7 @@ Employee availability self-service via one-time token.
 
 Flow:
   1. Manager triggers via WhatsApp bot → backend calls POST /availability-token/{employee_id}
-     which creates an AvailabilityToken (2-hour expiry) and returns the URL.
+     which creates an AvailabilityToken (15-minute expiry) and returns the URL.
   2. Employee opens link: /availability?token=<uuid>
      The frontend fetches GET /api/v1/availability/me?token=<uuid> to load their rules.
   3. Employee adds/removes rules via POST/DELETE /api/v1/availability/me[/{id}]?token=<uuid>
@@ -150,7 +150,7 @@ async def add_my_availability(
     token: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Add an availability rule. Token may be reused until it expires (2 hours)."""
+    """Add an availability rule. Token may be reused until it expires (15 minutes)."""
     tok, employee = await _resolve_token(token, db, write=True)
 
     rule = EmployeeAvailability(employee_id=employee.id, **body.model_dump())

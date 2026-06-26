@@ -23,7 +23,7 @@ class AvailabilityToken(Base):
         nullable=False,
         index=True,
     )
-    # Token expires 7 days from creation
+    # Token expires 15 minutes from creation (set by the issuing endpoint)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
