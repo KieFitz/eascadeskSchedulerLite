@@ -5,50 +5,21 @@ import Layout from '../components/layout/Layout'
 import Button from '../components/common/Button'
 import Badge from '../components/common/Badge'
 import { useAuth } from '../context/AuthContext'
+import { useTranslations } from '../i18n'
 import { createCheckout, createPortal } from '../api/payments'
 import toast from 'react-hot-toast'
 
-const FREE_FEATURES = [
-  { text: '1 auto-schedule per month', pro: false },
-  { text: 'Shifts up to 14 days ahead', pro: false },
-  { text: 'Unlimited employees & shifts', pro: false },
-  { text: 'Excel upload & export', pro: false },
-  { text: 'Availability preferences', pro: false },
-  { text: 'Labour law constraints (IE, GB, ES)', pro: false },
-]
-
-const PRO_EXTRAS = [
-  { text: 'Unlimited auto-schedules', pro: true },
-  { text: 'Shifts up to 31 days ahead', pro: true },
-]
-
-const ALL_PRO_FEATURES = [
-  ...FREE_FEATURES.map((f) => ({ ...f, pro: false })),
-  ...PRO_EXTRAS,
-]
-
-const FAQS = [
-  {
-    q: 'Can I cancel at any time?',
-    a: 'Yes. Cancel from the billing portal and your plan reverts to Free at the end of the current billing period.',
-  },
-  {
-    q: 'What happens to my data if I cancel?',
-    a: 'All your schedules and employees are kept. You simply lose access to Pro-only features.',
-  },
-  {
-    q: 'Is there a free trial?',
-    a: 'The Free plan lets you run one schedule per month at no cost — no credit card required. Upgrade whenever you need more.',
-  },
-  {
-    q: 'How is billing handled?',
-    a: 'Payments are processed securely by Stripe. We never store your card details.',
-  },
-]
-
 export default function Pricing() {
   const { user } = useAuth()
+  const { t } = useTranslations()
   const isPro = user?.plan === 'paid'
+
+  const FREE_FEATURES = t('freeFeatures').map((text) => ({ text }))
+  const ALL_PRO_FEATURES = [
+    ...FREE_FEATURES.map((f) => ({ ...f, pro: false })),
+    ...t('proExtras').map((text) => ({ text, pro: true })),
+  ]
+  const FAQS = t('faqs')
 
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -56,7 +27,7 @@ export default function Pricing() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('payment') === 'cancelled') {
-      toast('Checkout cancelled — your plan has not changed.', { icon: 'ℹ️' })
+      toast(t('checkoutCancelled'), { icon: 'ℹ️' })
       window.history.replaceState({}, '', '/pricing')
     }
   }, [])
@@ -67,7 +38,7 @@ export default function Pricing() {
       const { url } = await createCheckout()
       window.location.href = url
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Could not start checkout. Please try again.')
+      toast.error(err?.response?.data?.detail ?? t('checkoutFail'))
     } finally {
       setCheckoutLoading(false)
     }
@@ -79,20 +50,20 @@ export default function Pricing() {
       const { url } = await createPortal()
       window.location.href = url
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Could not open billing portal.')
+      toast.error(err?.response?.data?.detail ?? t('portalFail'))
     } finally {
       setPortalLoading(false)
     }
   }
 
   return (
-    <Layout title="Pricing">
+    <Layout title={t('pricingTitle')}>
       <div className="max-w-4xl">
 
         {/* Page heading */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-dark mb-1">Plans &amp; Pricing</h2>
-          <p className="text-sm text-muted">Start free, upgrade when you need more.</p>
+          <h2 className="text-2xl font-bold text-dark mb-1">{t('plansHeading')}</h2>
+          <p className="text-sm text-muted">{t('plansSubtitle')}</p>
         </div>
 
         {/* Plan cards */}
@@ -104,14 +75,14 @@ export default function Pricing() {
           }`}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-dark text-lg">Free</h3>
+                <h3 className="font-bold text-dark text-lg">{t('free')}</h3>
                 <p className="text-3xl font-bold text-dark mt-1">
                   €0
-                  <span className="text-sm font-normal text-muted">/month</span>
+                  <span className="text-sm font-normal text-muted">{t('perMonth')}</span>
                 </p>
-                <p className="text-xs text-muted mt-0.5">No credit card required</p>
+                <p className="text-xs text-muted mt-0.5">{t('noCardRequired')}</p>
               </div>
-              {!isPro && <Badge colour="purple">Your plan</Badge>}
+              {!isPro && <Badge colour="purple">{t('yourPlan')}</Badge>}
             </div>
 
             <ul className="space-y-2.5 flex-1 mb-6">
@@ -124,7 +95,7 @@ export default function Pricing() {
             </ul>
 
             <Button variant="secondary" className="w-full justify-center" disabled>
-              {isPro ? 'Free plan' : 'Current plan'}
+              {isPro ? t('freePlanBtn') : t('currentPlan')}
             </Button>
           </div>
 
@@ -134,16 +105,16 @@ export default function Pricing() {
           }`}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="font-bold text-dark text-lg">Pro</h3>
+                <h3 className="font-bold text-dark text-lg">{t('pro')}</h3>
                 <p className="text-3xl font-bold text-dark mt-1">
                   €15
-                  <span className="text-sm font-normal text-muted">/month</span>
+                  <span className="text-sm font-normal text-muted">{t('perMonth')}</span>
                 </p>
-                <p className="text-xs text-muted mt-0.5">Cancel any time</p>
+                <p className="text-xs text-muted mt-0.5">{t('cancelAnyTime')}</p>
               </div>
               {isPro
-                ? <Badge colour="teal">Active</Badge>
-                : <Badge colour="amber">Recommended</Badge>
+                ? <Badge colour="teal">{t('activeBadge')}</Badge>
+                : <Badge colour="amber">{t('recommended')}</Badge>
               }
             </div>
 
@@ -157,7 +128,7 @@ export default function Pricing() {
                   {text}
                   {pro && (
                     <span className="ml-auto text-xs bg-brand-purple/10 text-brand-purple rounded px-1.5 py-0.5 font-normal leading-none self-center">
-                      Pro
+                      {t('pro')}
                     </span>
                   )}
                 </li>
@@ -171,7 +142,7 @@ export default function Pricing() {
                 onClick={handlePortal}
                 loading={portalLoading}
               >
-                Manage Subscription
+                {t('manageSubscription')}
               </Button>
             ) : (
               <Button
@@ -181,7 +152,7 @@ export default function Pricing() {
                 loading={checkoutLoading}
               >
                 <StarIcon className="h-4 w-4" />
-                Upgrade to Pro
+                {t('upgradeToProBtn')}
               </Button>
             )}
           </div>
@@ -190,15 +161,13 @@ export default function Pricing() {
         {/* Stripe trust badge */}
         {!isPro && (
           <p className="text-center text-xs text-muted mb-8">
-            Secure payments powered by{' '}
-            <span className="font-semibold text-dark">Stripe</span>
-            {' '}· SSL encrypted · No card stored on our servers
+            {t('stripeTrust')}
           </p>
         )}
 
         {/* FAQ */}
         <div className="bg-white rounded-xl shadow-soft p-6">
-          <h3 className="font-semibold text-dark mb-5">Frequently asked questions</h3>
+          <h3 className="font-semibold text-dark mb-5">{t('faqHeading')}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
             {FAQS.map(({ q, a }) => (
               <div key={q}>

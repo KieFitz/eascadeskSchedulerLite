@@ -16,17 +16,17 @@ import logo from '../../assets/logo.png'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
-  const { t } = useTranslations(user?.country)
+  const { t } = useTranslations()
   const isPro = user?.plan === 'paid'
 
   const navItems = [
     { to: '/schedules', label: t('navSchedule'), Icon: CalendarDaysIcon },
     ...(isPro ? [
-      { to: '/employees',  label: 'Employees',   Icon: UserGroupIcon },
-      { to: '/clock',      label: 'Clock Events', Icon: ClockIcon },
+      { to: '/employees',  label: t('navEmployees'), Icon: UserGroupIcon },
+      { to: '/clock',      label: t('navClock'),     Icon: ClockIcon },
     ] : []),
     { to: '/rules', label: t('navRules'), Icon: ScaleIcon },
-    { to: '/guide', label: 'Guide', Icon: BookOpenIcon },
+    { to: '/guide', label: t('navGuide'), Icon: BookOpenIcon },
   ]
 
   return (
@@ -89,7 +89,7 @@ export default function Sidebar() {
           ) : (
             <StarIcon className="h-5 w-5 flex-shrink-0" />
           )}
-          {isPro ? 'Billing' : 'Upgrade to Pro'}
+          {isPro ? t('billing') : t('upgradeToPro')}
         </NavLink>
       </nav>
 
@@ -101,9 +101,9 @@ export default function Sidebar() {
             <p className="text-white/50 text-xs truncate">{user.email}</p>
             <div className="mt-1.5">
               {isPro ? (
-                <Badge colour="teal">Pro</Badge>
+                <Badge colour="teal">{t('pro')}</Badge>
               ) : (
-                <Badge colour="gray">Free</Badge>
+                <Badge colour="gray">{t('free')}</Badge>
               )}
             </div>
           </div>

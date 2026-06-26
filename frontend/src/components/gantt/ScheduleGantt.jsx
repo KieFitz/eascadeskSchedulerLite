@@ -16,9 +16,11 @@ import ShiftCreateModal from './ShiftCreateModal'
 import Select from '../common/Select'
 import Modal from '../common/Modal'
 import Button from '../common/Button'
+import { useTranslations } from '../../i18n'
 
 // ── Portal tooltip ────────────────────────────────────────────────────────────
 function ShiftTooltip({ tip }) {
+  const { t } = useTranslations()
   if (!tip) return null
   const { assignment: a, violations: v, x, y } = tip
   const shiftViolations = v?.[a.shift_id] ?? []
@@ -67,7 +69,7 @@ function ShiftTooltip({ tip }) {
       {/* Required skills */}
       {a.required_skills?.length > 0 && (
         <div>
-          <p className="text-white/50 text-[10px] uppercase tracking-wider mb-0.5">Required skills</p>
+          <p className="text-white/50 text-[10px] uppercase tracking-wider mb-0.5">{t('requiredSkills')}</p>
           <div className="flex flex-wrap gap-1">
             {a.required_skills.map((s) => (
               <span key={s} className="px-1.5 py-0.5 rounded bg-white/15 text-white text-[10px] font-medium">
@@ -85,16 +87,16 @@ function ShiftTooltip({ tip }) {
             <span className="h-1.5 w-1.5 rounded-full bg-brand-teal flex-shrink-0" />
             <span>{a.employee_name}</span>
             {a.source === 'SOLVER' && (
-              <span className="text-white/40 text-[10px]">(auto)</span>
+              <span className="text-white/40 text-[10px]">({t('autoScheduled').toLowerCase()})</span>
             )}
             {a.source === 'MANUAL' && (
-              <span className="text-white/40 text-[10px]">(manual)</span>
+              <span className="text-white/40 text-[10px]">({t('manual').toLowerCase()})</span>
             )}
           </>
         ) : (
           <>
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-            <span className="text-amber-300">Unassigned</span>
+            <span className="text-amber-300">{t('unassigned')}</span>
           </>
         )}
       </div>
@@ -253,6 +255,7 @@ function SkillChips({ skills = [] }) {
 
 // ── Week navigation bar ───────────────────────────────────────────────────────
 function WeekNav({ weekStart, allDates, daysInView, onPrev, onNext, onToday }) {
+  const { t } = useTranslations()
   const visibleEnd = addDays(weekStart, daysInView - 1)
   const startStr = format(weekStart, 'yyyy-MM-dd')
   const endStr   = format(visibleEnd, 'yyyy-MM-dd')
@@ -276,18 +279,19 @@ function WeekNav({ weekStart, allDates, daysInView, onPrev, onNext, onToday }) {
       </button>
       <button onClick={onToday}
         className="ml-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-medium text-dark hover:bg-gray-50 transition-colors">
-        Today
+        {t('today')}
       </button>
     </div>
   )
 }
 
 function DayWeekToggle({ daysInView, onChange }) {
+  const { t } = useTranslations()
   return (
     <div className="flex rounded-lg border border-gray-200 overflow-hidden">
       {[
-        { days: 1, label: 'Day'  },
-        { days: 7, label: 'Week' },
+        { days: 1, label: t('viewDay')  },
+        { days: 7, label: t('viewWeek') },
       ].map(({ days, label }) => (
         <button key={days} onClick={() => onChange(days)}
           className={['px-3 py-1.5 text-xs font-medium transition-colors',
@@ -300,12 +304,13 @@ function DayWeekToggle({ daysInView, onChange }) {
 }
 
 function ViewToggle({ view, onChange }) {
+  const { t } = useTranslations()
   return (
     <div className="flex rounded-lg border border-gray-200 overflow-hidden">
       {[
-        { id: 'employee', Icon: CalendarDaysIcon, label: 'By Employee' },
-        { id: 'coverage', Icon: TableCellsIcon,   label: 'By Shift'    },
-        { id: 'shift',    Icon: ListBulletIcon,   label: 'List'        },
+        { id: 'employee', Icon: CalendarDaysIcon, label: t('byEmployee') },
+        { id: 'coverage', Icon: TableCellsIcon,   label: t('byShift')    },
+        { id: 'shift',    Icon: ListBulletIcon,   label: t('listView')   },
       ].map(({ id, Icon, label }) => (
         <button key={id} onClick={() => onChange(id)}
           className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
@@ -339,6 +344,7 @@ function EmployeeView({
   onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate,
   onTipShow, onTipHide,
 }) {
+  const { t } = useTranslations()
   const draggedShiftId = useRef(null)
   const [dragOverTarget, setDragOverTarget] = useState(null) // empId or 'unassigned'
 
@@ -377,7 +383,7 @@ function EmployeeView({
                 <button
                   onClick={() => onClickCreateShift(d)}
                   className="p-0.5 rounded hover:bg-brand-purple/10 text-brand-purple opacity-50 hover:opacity-100 transition-opacity"
-                  title={`Add shift on ${d}`}
+                  title={t('addShiftOn', d)}
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
                 </button>
@@ -396,8 +402,8 @@ function EmployeeView({
             onDrop={editable ? (e) => { e.preventDefault(); handleDrop(null) } : undefined}
           >
             <div className="px-4 flex flex-col justify-center border-r border-amber-200" style={{ minHeight: ROW_H }}>
-              <p className="text-sm font-semibold text-amber-700">Open shifts</p>
-              {editable && <p className="text-[10px] text-amber-600/70">Click + to add</p>}
+              <p className="text-sm font-semibold text-amber-700">{t('openShifts')}</p>
+              {editable && <p className="text-[10px] text-amber-600/70">{t('clickPlusToAdd')}</p>}
             </div>
             {visibleDates.map((d) => {
               const slots = unassignedMap[d] ?? []
@@ -436,7 +442,7 @@ function EmployeeView({
                     <button
                       onClick={(e) => { e.stopPropagation(); onClickCreateShift(d) }}
                       className="absolute top-1 right-1 p-0.5 rounded hover:bg-amber-200 text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                      title={`Add open shift on ${d}`}
+                      title={t('addOpenShiftOn', d)}
                     >
                       <PlusIcon className="h-3.5 w-3.5" />
                     </button>
@@ -515,6 +521,7 @@ function EmployeeView({
 // Shift view — table grouped by date, with inline reassignment dropdown
 // ════════════════════════════════════════════════════════════════════════════
 function ShiftView({ employees, assignments, visibleDates, editable, violations, onReassign, onClickEditShift, onClickCreateShift }) {
+  const { t } = useTranslations()
   const byDate = useMemo(() => {
     const m = {}
     for (const d of visibleDates) m[d] = []
@@ -551,15 +558,15 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2 sticky top-0 z-10 border-b border-gray-200">
               <span className="text-xs font-bold text-brand-purple">{format(parseISO(d), 'EEEE')}</span>
               <span className="text-xs font-semibold text-dark">{format(parseISO(d), 'd MMMM yyyy')}</span>
-              <span className="ml-auto text-xs text-muted">{slots.length} slot{slots.length !== 1 ? 's' : ''}</span>
+              <span className="ml-auto text-xs text-muted">{t('slotsCount', slots.length)}</span>
               {editable && (
                 <button
                   onClick={() => onClickCreateShift(d)}
                   className="flex items-center gap-1 text-xs text-brand-purple hover:text-brand-purple-light font-medium transition-colors"
-                  title="Add shift"
+                  title={t('addShift')}
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
-                  Add shift
+                  {t('addShift')}
                 </button>
               )}
             </div>
@@ -597,14 +604,14 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                             size="sm"
                             value={a.employee_id || ''}
                             onChange={(v) => onReassign(a.shift_id, v || null)}
-                            placeholder="Unassigned"
+                            placeholder={t('unassigned')}
                             options={employees.map((emp) => ({ value: emp.id, label: emp.name }))}
                             className="min-w-[120px]"
                           />
                           <button
                             onClick={() => onClickEditShift(a)}
                             className="p-1 rounded hover:bg-gray-100 text-muted hover:text-dark transition-colors"
-                            title="Edit / delete shift"
+                            title={t('editDeleteShift')}
                           >
                             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -660,6 +667,7 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
 // Shift-type bulk-edit modal
 // ════════════════════════════════════════════════════════════════════════════
 function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDeleteAll, onReassignAll, onEditAll, onClose }) {
+  const { t } = useTranslations()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [empId,      setEmpId]      = useState('')
   const [startTime,  setStartTime]  = useState(type.start_time)
@@ -676,7 +684,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
     setSkills((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
 
   const handleApply = () => {
-    if (startTime === endTime) { setTimeError('Start and end time must differ.'); return }
+    if (startTime === endTime) { setTimeError(t('startEndDiffer')); return }
     setTimeError('')
     if (timesChanged || skillsChanged) onEditAll(startTime, endTime, skills)
     if (empId) onReassignAll(empId === '__unassign__' ? null : empId)
@@ -684,7 +692,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
   }
 
   return (
-    <Modal open title="Edit all shifts of this type" onClose={onClose} size="sm">
+    <Modal open title={t('editAllShiftsType')} onClose={onClose} size="sm">
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-xs text-muted">
         <p className="font-roboto font-semibold text-dark text-sm">{type.label}</p>
         <p>{count} shift{count !== 1 ? 's' : ''} across the schedule — all will be updated.</p>
@@ -693,12 +701,12 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
       {/* Times */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">Start time</label>
+          <label className="block mb-1 text-xs font-semibold text-dark">{t('startTime')}</label>
           <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
         </div>
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">End time</label>
+          <label className="block mb-1 text-xs font-semibold text-dark">{t('endTime')}</label>
           <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
         </div>
@@ -708,7 +716,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
       {/* Skills */}
       {allSkills.length > 0 && (
         <div className="mb-4">
-          <label className="block mb-1.5 text-xs font-semibold text-dark">Required skills</label>
+          <label className="block mb-1.5 text-xs font-semibold text-dark">{t('requiredSkills')}</label>
           <div className="flex flex-wrap gap-1.5">
             {allSkills.map((s) => (
               <button key={s} type="button" onClick={() => toggleSkill(s)}
@@ -724,12 +732,12 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
       {/* Assign all */}
       <div className="mb-5">
         <Select
-          label={<>Assign all to <span className="font-normal text-muted">(optional)</span></>}
+          label={<>{t('assignAllTo')} <span className="font-normal text-muted">{t('optional')}</span></>}
           value={empId}
           onChange={setEmpId}
-          placeholder="— Leave as-is —"
+          placeholder={t('leaveAsIs')}
           options={[
-            { value: '__unassign__', label: 'Unassign all' },
+            { value: '__unassign__', label: t('unassignAll') },
             ...employees.map((emp) => ({
               value: emp.id,
               label: emp.name + (emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''),
@@ -750,11 +758,11 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
           }`}
         >
           <TrashIcon className="h-3.5 w-3.5" />
-          {confirmDelete ? `Confirm delete ${count}` : 'Delete all'}
+          {confirmDelete ? t('confirmDeleteN', count) : t('deleteAll')}
         </button>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" disabled={!hasChanges} onClick={handleApply}>Apply to all</Button>
+          <Button variant="secondary" size="sm" onClick={onClose}>{t('cancel')}</Button>
+          <Button size="sm" disabled={!hasChanges} onClick={handleApply}>{t('applyToAll')}</Button>
         </div>
       </div>
     </Modal>
@@ -765,6 +773,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
 // Coverage view — grid: rows = shift types, columns = dates
 // ════════════════════════════════════════════════════════════════════════════
 function CoverageView({ employees, shifts, assignments, visibleDates, editable, violations, onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate, onClickEditShiftType, onCopyShiftType }) {
+  const { t } = useTranslations()
   // Build the set of distinct shift types across the whole schedule (not just visible)
   // A "type" is keyed by start_time + end_time + sorted skills
   const shiftTypes = useMemo(() => {
@@ -790,7 +799,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
   // Index: typeKey → date → [assignment]
   const cellMap = useMemo(() => {
     const m = {}
-    for (const t of shiftTypes) m[t.key] = {}
+    for (const st of shiftTypes) m[st.key] = {}
     for (const a of assignments) {
       const skills = [...(a.required_skills ?? [])].sort()
       const key = `${a.start_time}|${a.end_time}|${skills.join(',')}`
@@ -809,7 +818,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
         {/* Header row */}
         <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
           <div className="flex-shrink-0 w-48 px-4 py-2 border-r border-gray-200 text-xs font-semibold text-muted flex items-center">
-            Shift type
+            {t('byShift')}
           </div>
           {visibleDates.map((d) => (
             <div
@@ -822,7 +831,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
                 <button
                   onClick={() => onClickCreateShift(d)}
                   className="p-0.5 rounded hover:bg-brand-purple/10 text-brand-purple opacity-50 hover:opacity-100 transition-opacity"
-                  title={`Add shift on ${d}`}
+                  title={t('addShiftOn', d)}
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
                 </button>
@@ -835,8 +844,8 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
         {editable && (
           <div className="flex border-b-2 border-amber-200 bg-amber-50">
             <div className="flex-shrink-0 w-48 px-4 py-2 border-r border-amber-200 flex flex-col justify-center" style={{ minHeight: 56 }}>
-              <p className="text-sm font-semibold text-amber-700">Open shifts</p>
-              <p className="text-[10px] text-amber-600/70">Click + to add</p>
+              <p className="text-sm font-semibold text-amber-700">{t('openShifts')}</p>
+              <p className="text-[10px] text-amber-600/70">{t('clickPlusToAdd')}</p>
             </div>
             {visibleDates.map((d) => (
               <div
@@ -848,10 +857,10 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
                 <button
                   onClick={() => onClickCreateShift(d)}
                   className="flex items-center gap-1 px-2 py-1 rounded text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                  title={`Add open shift on ${d}`}
+                  title={t('addOpenShiftOn', d)}
                 >
                   <PlusIcon className="h-3 w-3" />
-                  Add
+                  {t('add')}
                 </button>
               </div>
             ))}
@@ -861,7 +870,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
         {shiftTypes.length === 0 && editable && (
           <div className="flex items-center gap-3 px-4 py-3 text-xs text-muted bg-gray-50/80 border-b border-gray-100">
             <PlusIcon className="h-4 w-4 text-brand-purple/50 flex-shrink-0" />
-            <span>No shift types yet — use the <span className="font-semibold">Open shifts</span> row above or click <span className="font-semibold">+</span> on a date header to add your first shift.</span>
+            <span>{t('noShiftTypesYet')}</span>
           </div>
         )}
 
@@ -876,25 +885,25 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
               ].join(' ')}
               style={{ minHeight: 56 }}
               onClick={editable ? () => onClickEditShiftType(type) : undefined}
-              title={editable ? 'Click to edit all shifts of this type' : undefined}
+              title={editable ? t('clickToEditAll') : undefined}
             >
               <p className="text-xs font-roboto font-semibold text-dark">{type.label}</p>
               {type.required_skills.length > 0 ? (
                 <SkillChips skills={type.required_skills} />
               ) : (
-                <span className="text-[10px] text-muted italic">any skills</span>
+                <span className="text-[10px] text-muted italic">{t('anySkills')}</span>
               )}
               {editable && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onCopyShiftType(type) }}
                   className="mt-0.5 self-start flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] font-medium text-muted hover:text-brand-purple hover:border-brand-purple bg-white transition-colors opacity-0 group-hover/row:opacity-100 focus:opacity-100"
-                  title="Duplicate all shifts of this type (adds one more unassigned slot per date)"
+                  title={t('duplicateAllShifts')}
                 >
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" />
                     <path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
                   </svg>
-                  Copy row
+                  {t('copyRow')}
                 </button>
               )}
             </div>
@@ -908,7 +917,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
                   className="flex-shrink-0 border-r border-gray-100 flex flex-col gap-1 p-1.5 items-start justify-start group relative"
                   style={{ width: COL_W, minHeight: 56 }}
                   onDoubleClick={editable ? () => onDblClickCreate(d, type.start_time, type.end_time) : undefined}
-                  title={editable ? 'Double-click to add a shift here' : undefined}
+                  title={editable ? t('doubleClickToAdd') : undefined}
                 >
                   {slots.map((a) => {
                     const hasViolation = (violations?.[a.shift_id]?.length ?? 0) > 0
@@ -928,7 +937,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
                         ].join(' ')}
                       >
                         {hasViolation && <ExclamationTriangleIcon className="inline h-3 w-3 text-red-500 mr-0.5 -mt-0.5" />}
-                        {a.employee_id ? a.employee_name : <span className="opacity-60 italic">Open</span>}
+                        {a.employee_id ? a.employee_name : <span className="opacity-60 italic">{t('openCell')}</span>}
                         {a.required_skills?.length > 0 && (
                           <span className="ml-1 opacity-70">· {a.required_skills.join(', ')}</span>
                         )}
@@ -970,6 +979,7 @@ export default function ScheduleGantt({
   onFindSubstitutes,    // async (shiftId) => [{employee_id, score, ...}]
   editable = false,
 }) {
+  const { t } = useTranslations()
   const employeesArr   = employees   ?? []
   const shiftsArr      = shifts      ?? []
   const assignmentsArr = assignments ?? []
@@ -1193,39 +1203,39 @@ export default function ScheduleGantt({
       <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-100 bg-gray-50 text-xs text-muted flex-wrap">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-amber-100 border border-amber-300" />
-          Unassigned
+          {t('unassigned')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-brand-purple/80 border border-brand-purple" />
-          Assigned
+          {t('legendAssigned')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-brand-teal/80 border border-teal-300" />
-          Auto-scheduled
+          {t('autoScheduled')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-emerald-100 border border-emerald-200" />
-          Preferred
+          {t('preferred')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-amber-100 border border-amber-200" />
-          Unpreferred
+          {t('unpreferred')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-rose-200 border border-rose-300" />
-          Unavailable
+          {t('unavailable')}
         </span>
         {violations && Object.keys(violations).length > 0 && (
           <span className="flex items-center gap-1.5 text-red-500">
             <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-            Constraint violation
+            {t('constraintViolation')}
           </span>
         )}
         {view === 'employee' && (
-          <span className="ml-auto">Showing {H_START}:00 – {H_END}:00{editable ? ' · Double-click to add · Drag to reassign' : ''}</span>
+          <span className="ml-auto">{t('showingHours', H_START, H_END, editable)}</span>
         )}
         {view === 'shift' && editable && (
-          <span className="ml-auto">Double-click any cell to add a shift</span>
+          <span className="ml-auto">{t('doubleClickAnyCell')}</span>
         )}
       </div>
 

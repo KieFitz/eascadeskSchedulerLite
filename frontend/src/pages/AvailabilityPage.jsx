@@ -5,22 +5,11 @@ import { TrashIcon, ClockIcon } from '@heroicons/react/24/outline'
 import Spinner from '../components/common/Spinner'
 import Badge from '../components/common/Badge'
 import Select from '../components/common/Select'
+import { useTranslations } from '../i18n'
 
 const API = (import.meta.env.VITE_API_URL ?? '') + '/api/v1'
 
-const DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const AVAIL_COLOUR = { preferred: 'teal', unpreferred: 'amber', unavailable: 'gray' }
-const AVAIL_LABEL  = { preferred: 'Prefer to work', unpreferred: 'Prefer not to work', unavailable: 'Unavailable' }
-
-const APPLIES_OPTIONS = [
-  { value: 'weekdays',  label: 'Every weekday (Mon–Fri)' },
-  { value: 'weekends',  label: 'Every weekend (Sat–Sun)' },
-  { value: 'every_day', label: 'Every day' },
-  { value: 'dow',       label: 'Specific day of week' },
-  { value: 'date',      label: 'Specific date' },
-]
-
-const DOW_OPTIONS = DAYS_FULL.map((d, i) => ({ value: String(i), label: d }))
 
 const HOURS   = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTES = ['00', '15', '30', '45']
@@ -48,41 +37,41 @@ function partsToMinutes(h, m) {
   return Number(h) * 60 + Number(m)
 }
 
-function ruleLabel(r) {
-  if (r.recurrence === 'weekdays')  return 'Every weekday'
-  if (r.recurrence === 'weekends')  return 'Every weekend'
-  if (r.recurrence === 'every_day') return 'Every day'
+function ruleLabel(r, t) {
+  if (r.recurrence === 'weekdays')  return t('everyWeekday')
+  if (r.recurrence === 'weekends')  return t('everyWeekend')
+  if (r.recurrence === 'every_day') return t('everyDay')
   if (r.specific_date)              return r.specific_date
-  return DAYS_FULL[r.day_of_week] ?? '—'
+  return t('daysFull')[r.day_of_week] ?? '—'
 }
 
-function timeLabel(r) {
+function timeLabel(r, t) {
   const s = minutesToParts(r.start_min)
   const e = minutesToParts(r.end_min)
-  if (s.h === '00' && s.m === '00' && r.end_min >= 1438) return 'All day'
+  if (s.h === '00' && s.m === '00' && r.end_min >= 1438) return t('timeAllDay')
   return `${s.h}:${s.m} – ${e.h}:${e.m}`
 }
 
 // ── Underline tabs ────────────────────────────────────────────────────────────
-function Tabs({ active, onChange }) {
+function Tabs({ active, onChange, t }) {
   return (
     <div className="flex border-b border-white/15 mb-6">
       {[
-        { id: 'add',  label: 'Add Preference' },
-        { id: 'view', label: 'Current Preferences' },
-      ].map((t) => (
+        { id: 'add',  label: t('addPreference') },
+        { id: 'view', label: t('currentPreferences') },
+      ].map((tab) => (
         <button
-          key={t.id}
+          key={tab.id}
           type="button"
-          onClick={() => onChange(t.id)}
+          onClick={() => onChange(tab.id)}
           className={[
             'flex-1 pb-3 text-sm font-semibold transition-all duration-200',
-            active === t.id
+            active === tab.id
               ? 'text-brand-purple border-b-2 border-brand-purple -mb-px'
               : 'text-brand-purple-light hover:text-brand-purple/70',
           ].join(' ')}
         >
-          {t.label}
+          {tab.label}
         </button>
       ))}
     </div>
@@ -156,6 +145,7 @@ function DrumColumn({ items, value, onChange }) {
 
 // ── Time picker modal ─────────────────────────────────────────────────────────
 function TimePickerModal({ title, h, m, onConfirm, onClose }) {
+  const { t } = useTranslations()
   const [localH, setLocalH] = useState(h)
   const [localM, setLocalM] = useState(m)
 
@@ -182,14 +172,14 @@ function TimePickerModal({ title, h, m, onConfirm, onClose }) {
             onClick={onClose}
             className="flex-1 rounded-xl border border-brand-purple/20 py-3 text-sm font-semibold text-brand-purple/50 hover:text-brand-purple/80 transition-colors"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="button"
             onClick={() => { onConfirm(localH, localM); onClose() }}
             className="flex-1 rounded-xl bg-brand-purple py-3 text-sm font-semibold text-white hover:opacity-90 active:scale-[0.98] transition-all"
           >
-            Done
+            {t('done')}
           </button>
         </div>
       </div>
@@ -218,6 +208,21 @@ function FieldLabel({ children }) {
 }
 
 export default function AvailabilityPage() {
+  const { t } = useTranslations()
+  const AVAIL_LABEL = {
+    preferred: t('preferToWork'),
+    unpreferred: t('preferNotToWork'),
+    unavailable: t('unavailable'),
+  }
+  const APPLIES_OPTIONS = [
+    { value: 'weekdays',  label: t('appliesWeekdays') },
+    { value: 'weekends',  label: t('appliesWeekends') },
+    { value: 'every_day', label: t('appliesEveryDay') },
+    { value: 'dow',       label: t('appliesDowShort') },
+    { value: 'date',      label: t('appliesDateShort') },
+  ]
+  const DOW_OPTIONS = t('daysFull').map((d, i) => ({ value: String(i), label: d }))
+
   const [params] = useSearchParams()
   const token = params.get('token') ?? ''
 
@@ -236,7 +241,7 @@ export default function AvailabilityPage() {
 
   useEffect(() => {
     if (!token) {
-      setError('No access token in link. Please use the link sent to your WhatsApp.')
+      setError(t('noTokenInLink'))
       setLoading(false)
       return
     }
@@ -249,7 +254,7 @@ export default function AvailabilityPage() {
         setName(infoRes.data.name)
         setRules(rulesRes.data)
       } catch (err) {
-        setError(err?.response?.data?.detail ?? 'This link is invalid or has expired.')
+        setError(err?.response?.data?.detail ?? t('linkInvalidExpired'))
       } finally {
         setLoading(false)
       }
@@ -286,9 +291,9 @@ export default function AvailabilityPage() {
       const status = err?.response?.status
       const detail = err?.response?.data?.detail
       if (status === 401) {
-        setError(detail ?? 'This link has expired. Request a new one via WhatsApp.')
+        setError(detail ?? t('linkExpiredWhatsapp'))
       } else {
-        setAddError(detail ?? 'Failed to add rule. Please try again.')
+        setAddError(detail ?? t('addRuleRetry'))
       }
     } finally {
       setAdding(false)
@@ -305,9 +310,9 @@ export default function AvailabilityPage() {
       const status = err?.response?.status
       const detail = err?.response?.data?.detail
       if (status === 401) {
-        setError(detail ?? 'This link has expired. Request a new one via WhatsApp.')
+        setError(detail ?? t('linkExpiredWhatsapp'))
       } else {
-        setAddError(detail ?? 'Failed to remove rule.')
+        setAddError(detail ?? t('removeRuleFail'))
       }
     } finally {
       setRemovingId(null)
@@ -329,7 +334,7 @@ export default function AvailabilityPage() {
       <div className="min-h-[100dvh] bg-dark flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
           <p className="text-3xl mb-4">⚠️</p>
-          <p className="font-semibold text-white mb-2">Link not valid</p>
+          <p className="font-semibold text-white mb-2">{t('linkNotValid')}</p>
           <p className="text-sm text-white/50">{error}</p>
         </div>
       </div>
@@ -340,19 +345,19 @@ export default function AvailabilityPage() {
     <div className="min-h-[100dvh] bg-gradient-to-br from-brand-dark to-[#1e1b4b] px-3 pb-12">
       {/* Header */}
       <div className="w-full lg:max-w-2xl lg:mx-auto pt-8 pb-6">
-        <p className="text-brand-purple-light font-bold text-xl">My Availability</p>
-        <p className="text-brand-purple-light/50 text-sm mt-0.5">Hi {name} — update your preferences below</p>
+        <p className="text-brand-purple-light font-bold text-xl">{t('myAvailability')}</p>
+        <p className="text-brand-purple-light/50 text-sm mt-0.5">{t('availGreeting', name)}</p>
       </div>
 
       {/* Saved banner */}
       {saved && (
         <div className="w-full lg:max-w-2xl lg:mx-auto mb-5">
-          <p className="text-brand-teal text-sm font-medium">✅ Changes saved</p>
+          <p className="text-brand-teal text-sm font-medium">{t('changesSavedBanner')}</p>
         </div>
       )}
 
       <div className="w-full lg:max-w-2xl lg:mx-auto">
-        <Tabs active={tab} onChange={setTab} />
+        <Tabs active={tab} onChange={setTab} t={t} />
 
         {/* ── ADD TAB ─────────────────────────────────────────────────────── */}
         {tab === 'add' && (
@@ -360,11 +365,11 @@ export default function AvailabilityPage() {
 
             {/* Type picker */}
             <div>
-              <FieldLabel>I want to…</FieldLabel>
+              <FieldLabel>{t('iWantTo')}</FieldLabel>
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {[
-                  { value: 'preferred',   label: 'Prefer to work',     emoji: '✅' },
-                  { value: 'unpreferred', label: 'Prefer not to work', emoji: '⚠️' },
+                  { value: 'preferred',   label: t('preferToWork'),     emoji: '✅' },
+                  { value: 'unpreferred', label: t('preferNotToWork'), emoji: '⚠️' },
                 ].map((opt) => (
                   <button
                     key={opt.value}
@@ -386,7 +391,7 @@ export default function AvailabilityPage() {
 
             {/* Applies to */}
             <div>
-              <FieldLabel>Applies to</FieldLabel>
+              <FieldLabel>{t('appliesTo')}</FieldLabel>
               <Select
                 value={form.applies}
                 onChange={(v) => setForm({ ...form, applies: v })}
@@ -397,7 +402,7 @@ export default function AvailabilityPage() {
             {/* Day of week */}
             {form.applies === 'dow' && (
               <div>
-                <FieldLabel>Day</FieldLabel>
+                <FieldLabel>{t('day')}</FieldLabel>
                 <Select
                   value={form.day_of_week}
                   onChange={(v) => setForm({ ...form, day_of_week: v })}
@@ -409,7 +414,7 @@ export default function AvailabilityPage() {
             {/* Specific date */}
             {form.applies === 'date' && (
               <div>
-                <FieldLabel>Date</FieldLabel>
+                <FieldLabel>{t('date')}</FieldLabel>
                 <input
                   type="date"
                   value={form.specific_date}
@@ -435,21 +440,21 @@ export default function AvailabilityPage() {
                   form.allDay ? 'translate-x-5' : 'translate-x-1',
                 ].join(' ')} />
               </div>
-              <span className="text-sm text-purple/70">All day</span>
+              <span className="text-sm text-purple/70">{t('allDay')}</span>
             </label>
 
             {/* Time chips — tap to open modal */}
             {!form.allDay && (
               <div>
-                <FieldLabel>Time range</FieldLabel>
+                <FieldLabel>{t('timeRange')}</FieldLabel>
                 <div className="flex gap-2 sm:gap-3">
                   <TimeChip
-                    label="From"
+                    label={t('from')}
                     value={`${form.startH}:${form.startM}`}
                     onClick={() => setTimePicker('start')}
                   />
                   <TimeChip
-                    label="To"
+                    label={t('to')}
                     value={`${form.endH}:${form.endM}`}
                     onClick={() => setTimePicker('end')}
                   />
@@ -468,7 +473,7 @@ export default function AvailabilityPage() {
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-purple px-4 py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {adding && <Spinner size="sm" />}
-              Save preference
+              {t('savePreference')}
             </button>
           </div>
         )}
@@ -478,7 +483,7 @@ export default function AvailabilityPage() {
           if (rules.length === 0) {
             return (
               <p className="text-sm text-purple/40 text-center py-10">
-                No preferences set — you're available for any shift by default.
+                {t('noPreferencesSet')}
               </p>
             )
           }
@@ -508,14 +513,14 @@ export default function AvailabilityPage() {
                         ].join(' ')}
                       >
                         <div className="min-w-0">
-                          <p className="text-purple text-sm font-medium">{ruleLabel(r)}</p>
-                          <p className="text-purple/40 text-xs mt-0.5">{timeLabel(r)}</p>
+                          <p className="text-purple text-sm font-medium">{ruleLabel(r, t)}</p>
+                          <p className="text-purple/40 text-xs mt-0.5">{timeLabel(r, t)}</p>
                         </div>
                         <button
                           onClick={() => handleRemove(r.id)}
                           disabled={removingId === r.id}
                           className="text-purple/25 hover:text-red-400 transition-colors shrink-0"
-                          title="Remove"
+                          title={t('removeRule')}
                         >
                           {removingId === r.id ? <Spinner size="sm" /> : <TrashIcon className="h-5 w-5" />}
                         </button>
@@ -529,14 +534,14 @@ export default function AvailabilityPage() {
         })()}
 
         <p className="text-center text-white/20 text-xs mt-8">
-          Changes are saved immediately and visible to your manager.
+          {t('availFooter')}
         </p>
       </div>
 
       {/* Time picker modals */}
       {timePicker === 'start' && (
         <TimePickerModal
-          title="Start time"
+          title={t('availStartTime')}
           h={form.startH}
           m={form.startM}
           onConfirm={(h, m) => setForm((f) => ({ ...f, startH: h, startM: m }))}
@@ -545,7 +550,7 @@ export default function AvailabilityPage() {
       )}
       {timePicker === 'end' && (
         <TimePickerModal
-          title="End time"
+          title={t('availEndTime')}
           h={form.endH}
           m={form.endM}
           onConfirm={(h, m) => setForm((f) => ({ ...f, endH: h, endM: m }))}

@@ -11,6 +11,7 @@ import Button from '../common/Button'
 import Spinner from '../common/Spinner'
 import Select from '../common/Select'
 import { format, parseISO } from 'date-fns'
+import { useTranslations } from '../../i18n'
 
 // Score badge colour
 function ScoreBadge({ score }) {
@@ -34,6 +35,7 @@ export default function ShiftEditModal({
   onClose,
   onFindSubstitutes,   // async (shift_id) => [{employee_id, employee_name, score, reasons, ...}]
 }) {
+  const { t } = useTranslations()
   const [selectedEmpId, setSelectedEmpId] = useState(assignment?.employee_id ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -72,14 +74,14 @@ export default function ShiftEditModal({
       const subs = await onFindSubstitutes(assignment.shift_id)
       setSubstitutes(subs)
     } catch {
-      setSubsError('Could not load replacements. Please try again.')
+      setSubsError(t('couldNotLoadReplacements'))
     } finally {
       setLoadingSubs(false)
     }
   }
 
   return (
-    <Modal open title="Edit Shift Assignment" onClose={onClose} size="sm">
+    <Modal open title={t('editShiftAssignment')} onClose={onClose} size="sm">
       {/* Shift info */}
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-sm">
         <div className="flex items-center justify-between">
@@ -87,9 +89,9 @@ export default function ShiftEditModal({
             {assignment.start_time} – {assignment.end_time}
           </span>
           {assignment.source === 'SOLVER' ? (
-            <span className="text-[10px] font-semibold bg-brand-teal/15 text-teal-700 px-2 py-0.5 rounded-full">Auto-scheduled</span>
+            <span className="text-[10px] font-semibold bg-brand-teal/15 text-teal-700 px-2 py-0.5 rounded-full">{t('autoScheduled')}</span>
           ) : assignment.source === 'MANUAL' ? (
-            <span className="text-[10px] font-semibold bg-brand-lavender-light text-brand-purple px-2 py-0.5 rounded-full">Manual</span>
+            <span className="text-[10px] font-semibold bg-brand-lavender-light text-brand-purple px-2 py-0.5 rounded-full">{t('manual')}</span>
           ) : null}
         </div>
         <p className="text-muted text-xs">{formattedDate}</p>
@@ -114,7 +116,7 @@ export default function ShiftEditModal({
               <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 space-y-1">
                 <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
                   <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-                  Constraint violations
+                  {t('constraintViolations')}
                 </p>
                 {hard.map((v, i) => (
                   <p key={i} className="text-xs text-red-600 pl-5">{v.message}</p>
@@ -125,7 +127,7 @@ export default function ShiftEditModal({
               <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-1">
                 <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
                   <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-                  Warnings
+                  {t('warnings')}
                 </p>
                 {soft.map((v, i) => (
                   <p key={i} className="text-xs text-amber-700 pl-5">{v.message}</p>
@@ -138,10 +140,10 @@ export default function ShiftEditModal({
 
       {/* Employee selector */}
       <Select
-        label="Assign to"
+        label={t('assignTo')}
         value={selectedEmpId}
         onChange={setSelectedEmpId}
-        placeholder="— Unassigned —"
+        placeholder={t('unassignedDash')}
         options={employees.map((emp) => ({
           value: emp.id,
           label: emp.name + (emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''),
@@ -154,7 +156,7 @@ export default function ShiftEditModal({
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-dark flex items-center gap-1.5">
               <UserGroupIcon className="h-3.5 w-3.5 text-brand-purple" />
-              Find replacement
+              {t('findReplacement')}
             </span>
             <button
               onClick={handleFindSubstitutes}
@@ -162,7 +164,7 @@ export default function ShiftEditModal({
               className="flex items-center gap-1 text-xs font-medium text-brand-purple hover:text-brand-purple/80 disabled:opacity-50 transition-colors"
             >
               {loadingSubs ? <Spinner size="sm" /> : null}
-              {loadingSubs ? 'Searching…' : 'Search'}
+              {loadingSubs ? t('searching') : t('search')}
             </button>
           </div>
 
@@ -173,7 +175,7 @@ export default function ShiftEditModal({
           {substitutes !== null && (
             <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               {substitutes.length === 0 ? (
-                <p className="px-3 py-2.5 text-xs text-muted text-center">No replacements found.</p>
+                <p className="px-3 py-2.5 text-xs text-muted text-center">{t('noReplacementsFound')}</p>
               ) : substitutes.slice(0, 6).map((sub) => (
                 <button
                   key={sub.employee_id}
@@ -221,12 +223,12 @@ export default function ShiftEditModal({
           }`}
         >
           <TrashIcon className="h-3.5 w-3.5" />
-          {confirmDelete ? 'Confirm delete' : 'Delete shift'}
+          {confirmDelete ? t('confirmDeleteShift') : t('deleteShift')}
         </button>
 
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={handleSave}>Save</Button>
+          <Button variant="secondary" size="sm" onClick={onClose}>{t('cancel')}</Button>
+          <Button size="sm" onClick={handleSave}>{t('save')}</Button>
         </div>
       </div>
     </Modal>

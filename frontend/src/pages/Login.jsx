@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTranslations } from '../i18n'
 import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import toast from 'react-hot-toast'
 import logo from '../assets/logo.png'
 
 export default function Login() {
+  const { t } = useTranslations()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -20,7 +22,7 @@ export default function Login() {
       await login(email, password)
       navigate('/')
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Invalid credentials. Please try again.')
+      toast.error(err?.response?.data?.detail ?? t('invalidCredentials'))
     } finally {
       setSubmitting(false)
     }
@@ -35,14 +37,14 @@ export default function Login() {
             <div className="flex items-center justify-center mx-auto mb-3">
                 <img src={logo} alt="Eascadesk Logo" className="h-12 w-auto rounded-md" />
             </div>
-            <h1 className="text-white font-semibold text-xl">Eascadesk Scheduler</h1>
-            <p className="text-white/70 text-sm mt-1">Sign in to your account</p>
+            <h1 className="text-white font-semibold text-xl">{t('appName')}</h1>
+            <p className="text-white/70 text-sm mt-1">{t('loginSubtitle')}</p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="px-8 py-8 space-y-4">
             <Input
-              label="Email"
+              label={t('emailLabel')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -51,7 +53,7 @@ export default function Login() {
               autoFocus
             />
             <Input
-              label="Password"
+              label={t('passwordLabel')}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -64,15 +66,15 @@ export default function Login() {
               size="lg"
               loading={submitting}
             >
-              Sign in
+              {t('signIn')}
             </Button>
           </form>
         </div>
 
         <p className="text-center text-sm text-muted mt-4">
-          Don't have an account?{' '}
+          {t('noAccount')}{' '}
           <Link to="/signup" className="text-brand-purple font-medium hover:underline">
-            Sign up free
+            {t('signUpFree')}
           </Link>
         </p>
 

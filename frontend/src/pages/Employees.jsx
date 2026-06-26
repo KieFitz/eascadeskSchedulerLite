@@ -25,20 +25,11 @@ import {
   listEmployees,
   updateEmployee,
 } from '../api/employees'
+import { useTranslations } from '../i18n'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 const AVAIL_COLOUR = { preferred: 'teal', unpreferred: 'amber', unavailable: 'gray' }
-
-// "Applies to" selector options
-const APPLIES_OPTIONS = [
-  { value: 'weekdays',  label: 'Every weekday (Mon–Fri)' },
-  { value: 'weekends',  label: 'Every weekend (Sat–Sun)' },
-  { value: 'every_day', label: 'Every day' },
-  { value: 'dow',       label: 'Specific day of week…' },
-  { value: 'date',      label: 'Specific date…' },
-]
 
 const EMPTY_FORM = {
   name: '',
@@ -79,6 +70,7 @@ function availSummary(rules) {
 }
 
 export default function Employees() {
+  const { t } = useTranslations()
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -123,7 +115,7 @@ export default function Employees() {
       const data = await listEmployees()
       setEmployees(data)
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to load employees')
+      toast.error(err?.response?.data?.detail ?? t('loadEmployeesFail'))
     }
   }, [])
 
@@ -168,18 +160,18 @@ export default function Employees() {
       if (editingId) {
         const updated = await updateEmployee(editingId, payload)
         setEmployees((prev) => prev.map((e) => (e.id === editingId ? updated : e)))
-        toast.success('Employee updated')
+        toast.success(t('employeeUpdated'))
       } else {
         const created = await createEmployee(payload)
         setEmployees((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-        toast.success('Employee added')
+        toast.success(t('employeeAdded'))
       }
       setModalOpen(false)
     } catch (err) {
       const detail = err?.response?.data?.detail
       const msg = Array.isArray(detail)
         ? detail.map((d) => d.msg ?? String(d)).join(' · ')
-        : (detail ?? 'Save failed')
+        : (detail ?? t('saveFail'))
       toast.error(msg)
     } finally {
       setSaving(false)
@@ -187,14 +179,14 @@ export default function Employees() {
   }
 
   const handleDelete = async (emp) => {
-    if (!window.confirm(`Delete ${emp.name}? This will also remove their availability and clock history.`)) return
+    if (!window.confirm(t('deleteEmployeeConfirm', emp.name))) return
     try {
       await deleteEmployee(emp.id)
       setEmployees((prev) => prev.filter((e) => e.id !== emp.id))
       setAvailCache((prev) => { const c = { ...prev }; delete c[emp.id]; return c })
-      toast.success('Employee deleted')
+      toast.success(t('employeeDeleted'))
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Delete failed')
+      toast.error(err?.response?.data?.detail ?? t('deleteFail'))
     }
   }
 
@@ -213,23 +205,23 @@ export default function Employees() {
         const rules = await listAvailability(emp.id)
         setAvailCache((prev) => ({ ...prev, [emp.id]: rules }))
       } catch {
-        toast.error('Failed to load availability')
+        toast.error(t('loadAvailFail'))
       }
     }
   }
 
   return (
-    <Layout title="Employees">
+    <Layout title={t('employeesTitle')}>
       <div className="bg-white rounded-xl shadow-soft">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
             <p className="text-xs text-muted mt-0.5">
-              Persistent employee directory. Phone numbers identify employees with the WhatsApp clock-in bot.
+              {t('employeesIntro')}
             </p>
           </div>
           <Button onClick={openCreate} size="sm">
             <PlusIcon className="h-4 w-4" />
-            Add employee
+            {t('addEmployee')}
           </Button>
         </div>
 
@@ -238,8 +230,8 @@ export default function Employees() {
         ) : employees.length === 0 ? (
           <EmptyState
             icon={UserGroupIcon}
-            title="No employees yet"
-            description="Add your first employee to start building a persistent roster."
+            title={t('noEmployeesYet')}
+            description={t('noEmployeesDesc')}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -247,14 +239,14 @@ export default function Employees() {
               <thead className="bg-gray-50 text-xs uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-4 py-3 text-left w-8"></th>
-                  <th className="px-4 py-3 text-left">Name</th>
-                  <th className="px-4 py-3 text-left">Phone</th>
-                  <th className="px-4 py-3 text-left">Skills</th>
-                  <th className="px-4 py-3 text-left">Availability</th>
-                  <th className="px-4 py-3 text-right">Min hrs/wk</th>
-                  <th className="px-4 py-3 text-right">€/hr</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 text-left">{t('name')}</th>
+                  <th className="px-4 py-3 text-left">{t('phone')}</th>
+                  <th className="px-4 py-3 text-left">{t('colSkills')}</th>
+                  <th className="px-4 py-3 text-left">{t('colAvailability')}</th>
+                  <th className="px-4 py-3 text-right">{t('colMinHrs')}</th>
+                  <th className="px-4 py-3 text-right">{t('colCostHr')}</th>
+                  <th className="px-4 py-3 text-left">{t('status')}</th>
+                  <th className="px-4 py-3 text-right">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -269,7 +261,7 @@ export default function Employees() {
                           <button
                             onClick={() => toggleExpand(emp)}
                             className="text-muted hover:text-dark"
-                            title={expanded ? 'Hide availability' : 'Edit availability'}
+                            title={expanded ? t('hideAvailability') : t('editAvailability')}
                           >
                             {expanded
                               ? <ChevronDownIcon className="h-4 w-4" />
@@ -287,19 +279,19 @@ export default function Employees() {
                         </td>
                         <td className="px-4 py-3">
                           {!rules ? (
-                            <span className="text-muted text-xs">expand to view</span>
+                            <span className="text-muted text-xs">{t('expandToView')}</span>
                           ) : counts === null ? (
-                            <span className="text-muted text-xs">no rules</span>
+                            <span className="text-muted text-xs">{t('noRules')}</span>
                           ) : (
                             <div className="flex flex-wrap gap-1">
                               {counts.preferred > 0 && (
-                                <Badge colour="teal">{counts.preferred} pref</Badge>
+                                <Badge colour="teal">{counts.preferred} {t('prefShort')}</Badge>
                               )}
                               {counts.unpreferred > 0 && (
-                                <Badge colour="amber">{counts.unpreferred} unpref</Badge>
+                                <Badge colour="amber">{counts.unpreferred} {t('unprefShort')}</Badge>
                               )}
                               {counts.unavailable > 0 && (
-                                <Badge colour="gray">{counts.unavailable} unavail</Badge>
+                                <Badge colour="gray">{counts.unavailable} {t('unavailShort')}</Badge>
                               )}
                             </div>
                           )}
@@ -308,21 +300,21 @@ export default function Employees() {
                         <td className="px-4 py-3 text-right text-dark">{emp.cost_per_hour.toFixed(2)}</td>
                         <td className="px-4 py-3">
                           {emp.is_active
-                            ? <Badge colour="teal">Active</Badge>
-                            : <Badge colour="gray">Inactive</Badge>}
+                            ? <Badge colour="teal">{t('active')}</Badge>
+                            : <Badge colour="gray">{t('inactive')}</Badge>}
                         </td>
                         <td className="px-4 py-3 text-right whitespace-nowrap">
                           <button
                             onClick={() => openEdit(emp)}
                             className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
-                            title="Edit"
+                            title={t('edit')}
                           >
                             <PencilSquareIcon className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(emp)}
                             className="text-muted hover:text-red-500 p-1.5 rounded transition-colors"
-                            title="Delete"
+                            title={t('delete')}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </button>
@@ -353,31 +345,31 @@ export default function Employees() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingId ? 'Edit employee' : 'Add employee'}
+        title={editingId ? t('editEmployee') : t('addEmployee')}
       >
         <div className="space-y-3">
           <Input
-            label="Full name"
+            label={t('fullName')}
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <Input
-            label="Phone (E.164, e.g. +353871234567)"
+            label={t('phoneLabel')}
             required
             placeholder="+353871234567"
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
           />
           <Input
-            label="Employee ID / NIF (optional)"
-            placeholder="e.g. 12345678A"
+            label={t('nifLabel')}
+            placeholder={t('nifPlaceholder')}
             value={form.nif}
             onChange={(e) => setForm({ ...form, nif: e.target.value })}
           />
           {/* Skills picker */}
           <div>
-            <label className="block mb-1.5 text-xs font-semibold text-dark">Skills</label>
+            <label className="block mb-1.5 text-xs font-semibold text-dark">{t('skillsLabel')}</label>
             {/* Selected skill tags */}
             {selectedSkills.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
@@ -412,7 +404,7 @@ export default function Employees() {
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Type a new skill and press Enter"
+                placeholder={t('newSkillPlaceholder')}
                 value={skillInput}
                 onChange={(e) => setSkillInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkillFromInput() } }}
@@ -423,13 +415,13 @@ export default function Employees() {
                 onClick={addSkillFromInput}
                 className="px-3 py-1.5 rounded-lg bg-gray-100 text-sm text-muted hover:bg-brand-lavender hover:text-dark"
               >
-                Add
+                {t('add')}
               </button>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Min hours / week"
+              label={t('minHoursWeek')}
               type="number"
               min="0"
               max="168"
@@ -437,7 +429,7 @@ export default function Employees() {
               onChange={(e) => setForm({ ...form, min_hours_week: e.target.value })}
             />
             <Input
-              label="Cost per hour (€)"
+              label={t('costPerHour')}
               type="number"
               step="0.01"
               min="0"
@@ -452,12 +444,12 @@ export default function Employees() {
               onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
               className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
             />
-            Active (can clock in via WhatsApp)
+            {t('activeWhatsapp')}
           </label>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
             <Button onClick={handleSave} loading={saving} disabled={!form.name || !form.phone}>
-              {editingId ? 'Save changes' : 'Add employee'}
+              {editingId ? t('saveChanges') : t('addEmployee')}
             </Button>
           </div>
         </div>
@@ -468,22 +460,30 @@ export default function Employees() {
 
 // ── Availability panel (rendered inline below each expanded row) ──────────────
 
-const RECURRENCE_LABEL = {
-  none:      null,
-  weekdays:  'Mon–Fri',
-  weekends:  'Sat–Sun',
-  every_day: 'Every day',
-}
-
-function ruleLabel(r) {
+function ruleLabel(r, t) {
+  const RECURRENCE_LABEL = {
+    none:      null,
+    weekdays:  t('recurWeekdays'),
+    weekends:  t('recurWeekends'),
+    every_day: t('recurEveryDay'),
+  }
   if (r.recurrence && r.recurrence !== 'none') return RECURRENCE_LABEL[r.recurrence]
   if (r.specific_date) return r.specific_date
-  return DAY_FULL[r.day_of_week]
+  return t('daysFull')[r.day_of_week]
 }
 
 function AvailabilityPanel({ employeeId, rules, onChange }) {
+  const { t } = useTranslations()
   const [form, setForm] = useState(EMPTY_AVAIL)
   const [adding, setAdding] = useState(false)
+
+  const APPLIES_OPTIONS = [
+    { value: 'weekdays',  label: t('appliesWeekdays') },
+    { value: 'weekends',  label: t('appliesWeekends') },
+    { value: 'every_day', label: t('appliesEveryDay') },
+    { value: 'dow',       label: t('appliesDow') },
+    { value: 'date',      label: t('appliesDate') },
+  ]
 
   const handleAdd = async () => {
     setAdding(true)
@@ -511,7 +511,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
       onChange([...rules, created])
       setForm(EMPTY_AVAIL)
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to add rule')
+      toast.error(err?.response?.data?.detail ?? t('addRuleFail'))
     } finally {
       setAdding(false)
     }
@@ -522,7 +522,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
       await deleteAvailability(employeeId, id)
       onChange(rules.filter((r) => r.id !== id))
     } catch {
-      toast.error('Failed to remove rule')
+      toast.error(t('removeRuleFail'))
     }
   }
 
@@ -530,19 +530,19 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
   return (
     <div>
       <p className="text-xs uppercase tracking-wider text-muted font-semibold mb-3">
-        Availability rules
+        {t('availabilityRules')}
       </p>
 
       {/* Rules table */}
       {rules.length === 0 ? (
-        <p className="text-xs text-muted mb-3">No rules — employee is fully available by default.</p>
+        <p className="text-xs text-muted mb-3">{t('noRulesDefault')}</p>
       ) : (
         <table className="w-full text-xs mb-4">
           <thead>
             <tr className="text-left text-muted border-b border-gray-100">
-              <th className="pb-1.5 pr-4 font-medium">Type</th>
-              <th className="pb-1.5 pr-4 font-medium">Applies to</th>
-              <th className="pb-1.5 pr-4 font-medium">Time</th>
+              <th className="pb-1.5 pr-4 font-medium">{t('type')}</th>
+              <th className="pb-1.5 pr-4 font-medium">{t('appliesTo')}</th>
+              <th className="pb-1.5 pr-4 font-medium">{t('time')}</th>
               <th className="pb-1.5"></th>
             </tr>
           </thead>
@@ -550,19 +550,19 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
             {rules.map((r) => (
               <tr key={r.id} className="hover:bg-white/60">
                 <td className="py-1.5 pr-4">
-                  <Badge colour={AVAIL_COLOUR[r.type]}>{r.type}</Badge>
+                  <Badge colour={AVAIL_COLOUR[r.type]}>{t(r.type)}</Badge>
                 </td>
-                <td className="py-1.5 pr-4 font-medium text-dark">{ruleLabel(r)}</td>
+                <td className="py-1.5 pr-4 font-medium text-dark">{ruleLabel(r, t)}</td>
                 <td className="py-1.5 pr-4 font-roboto text-muted">
                   {minutesToHHMM(r.start_min) === '00:00' && minutesToHHMM(r.end_min) === '23:59'
-                    ? 'All day'
+                    ? t('timeAllDay')
                     : `${minutesToHHMM(r.start_min)} – ${minutesToHHMM(r.end_min)}`}
                 </td>
                 <td className="py-1.5 text-right">
                   <button
                     onClick={() => handleRemove(r.id)}
                     className="text-muted hover:text-red-500"
-                    title="Remove rule"
+                    title={t('removeRule')}
                   >
                     <TrashIcon className="h-3.5 w-3.5" />
                   </button>
@@ -575,26 +575,26 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
 
       {/* Add rule form */}
       <div className="bg-white rounded-lg p-3 border border-dashed border-gray-200 space-y-2">
-        <p className="text-xs text-muted font-medium">Add rule</p>
+        <p className="text-xs text-muted font-medium">{t('addRule')}</p>
         <div className="flex flex-wrap items-end gap-2">
           {/* Type */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">Type</label>
+            <label className="text-xs text-muted">{t('type')}</label>
             <Select
               size="sm"
               value={form.type}
               onChange={(v) => setForm({ ...form, type: v })}
               options={[
-                { value: 'preferred', label: 'Preferred' },
-                { value: 'unpreferred', label: 'Unpreferred' },
-                { value: 'unavailable', label: 'Unavailable' },
+                { value: 'preferred', label: t('preferred') },
+                { value: 'unpreferred', label: t('unpreferred') },
+                { value: 'unavailable', label: t('unavailable') },
               ]}
             />
           </div>
 
           {/* Applies to */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">Applies to</label>
+            <label className="text-xs text-muted">{t('appliesTo')}</label>
             <Select
               size="sm"
               value={form.applies}
@@ -606,12 +606,12 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {/* Day picker — only when applies == 'dow' */}
           {form.applies === 'dow' && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">Day</label>
+              <label className="text-xs text-muted">{t('day')}</label>
               <Select
                 size="sm"
                 value={form.day_of_week}
                 onChange={(v) => setForm({ ...form, day_of_week: v })}
-                options={DAYS.map((d, i) => ({ value: i, label: DAY_FULL[i] }))}
+                options={DAYS.map((d, i) => ({ value: i, label: t('daysFull')[i] }))}
               />
             </div>
           )}
@@ -619,7 +619,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {/* Date picker — only when applies == 'date' */}
           {form.applies === 'date' && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">Date</label>
+              <label className="text-xs text-muted">{t('date')}</label>
               <input
                 type="date"
                 value={form.specific_date}
@@ -633,11 +633,11 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {!form.allDay && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted">From</label>
+                <label className="text-xs text-muted">{t('from')}</label>
                 <input type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted">To</label>
+                <label className="text-xs text-muted">{t('to')}</label>
                 <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150" />
               </div>
             </>
@@ -651,13 +651,13 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
               onChange={(e) => setForm({ ...form, allDay: e.target.checked })}
               className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
             />
-            All day
+            {t('allDay')}
           </label>
 
           <Button size="sm" onClick={handleAdd} loading={adding}
             disabled={form.applies === 'date' && !form.specific_date}>
             <PlusIcon className="h-4 w-4" />
-            Add
+            {t('add')}
           </Button>
         </div>
       </div>

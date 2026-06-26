@@ -4,6 +4,7 @@ import Button from '../common/Button'
 import Select from '../common/Select'
 import { createBuilderSchedule, listSchedules } from '../../api/schedules'
 import { useAuth } from '../../context/AuthContext'
+import { useTranslations } from '../../i18n'
 import toast from 'react-hot-toast'
 
 function toLocalISO(d) {
@@ -56,15 +57,16 @@ function remapShifts(shiftsData, oldDateFrom, newDateFrom) {
   }))
 }
 
-const DURATION_OPTIONS = [
-  { label: '1 week',  days: 7  },
-  { label: '2 weeks', days: 14 },
-  { label: '4 weeks', days: 28 },
-]
-
 export default function BuilderSetupModal({ open, onClose, onCreated }) {
   const { user } = useAuth()
+  const { t } = useTranslations()
   const isPro = user?.plan === 'paid'
+
+  const DURATION_OPTIONS = [
+    { label: t('oneWeek'),   days: 7  },
+    { label: t('twoWeeks'),  days: 14 },
+    { label: t('fourWeeks'), days: 28 },
+  ]
 
   const [name,         setName]         = useState('')
   const [weekStart,    setWeekStart]    = useState(() => nextMonday(todayLocalISO()))
@@ -95,7 +97,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
   }, [open])
 
   async function handleCreate() {
-    if (!weekStart) { toast.error('Pick a start date.'); return }
+    if (!weekStart) { toast.error(t('pickStartDate')); return }
     setCreating(true)
     try {
       let shifts = null
@@ -115,28 +117,28 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
       })
       toast.success(
         shifts
-          ? `Schedule created with ${shifts.length} shifts copied — assign employees or auto-schedule.`
-          : 'Schedule created — click the Gantt to add shifts.'
+          ? t('shiftsCopiedToast', shifts.length)
+          : t('scheduleCreatedToast')
       )
       onCreated(run.id)
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to create schedule.')
+      toast.error(err?.response?.data?.detail ?? t('scheduleCreateFail'))
     } finally {
       setCreating(false)
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New Schedule" size="sm">
+    <Modal open={open} onClose={onClose} title={t('newSchedule')} size="sm">
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-medium text-muted mb-1">
-            Name <span className="text-gray-400">(optional)</span>
+            {t('builderName')} <span className="text-gray-400">{t('optional')}</span>
           </label>
           <input
             type="text"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
-            placeholder="e.g. Week 20 – Shop Floor"
+            placeholder={t('builderNamePlaceholder')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
@@ -144,7 +146,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">Duration</label>
+          <label className="block text-xs font-medium text-muted mb-1">{t('duration')}</label>
           <div className="flex gap-2">
             {DURATION_OPTIONS.map((opt) => {
               const locked = !isPro && opt.days > 7
@@ -163,7 +165,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
                   ].join(' ')}
                 >
                   {opt.label}
-                  {locked && <span className="block text-[10px] mt-0.5 text-gray-400">Pro only</span>}
+                  {locked && <span className="block text-[10px] mt-0.5 text-gray-400">{t('proOnly')}</span>}
                 </button>
               )
             })}
@@ -171,7 +173,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">Start date</label>
+          <label className="block text-xs font-medium text-muted mb-1">{t('startDate')}</label>
           <input
             type="date"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
@@ -186,21 +188,21 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
         {prevRuns.length > 0 && (
           <div>
             <label className="block text-xs font-medium text-muted mb-1">
-              Copy shifts from <span className="text-gray-400">(optional)</span>
+              {t('copyShiftsFrom')} <span className="text-gray-400">{t('optional')}</span>
             </label>
             <Select
               value={copyFromId}
               onChange={setCopyFromId}
-              placeholder="— Start blank —"
+              placeholder={t('startBlank')}
               options={prevRuns.map((r) => ({
                 value: r.id,
                 label: (r.name ? `${r.name} (${r.date_from})` : `${r.date_from} → ${r.date_to}`)
-                  + ` · ${r.shifts_data.length} shift${r.shifts_data.length !== 1 ? 's' : ''}`,
+                  + ` · ${t('shiftSlotsCount', r.shifts_data.length)}`,
               }))}
             />
             {copyFromId && (
               <p className="text-xs text-muted mt-1">
-                Shift times and skills will be copied; dates will be moved to match the new start date. Assignments are cleared so you can re-assign or auto-schedule.
+                {t('copyShiftsNote')}
               </p>
             )}
           </div>
@@ -208,14 +210,14 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
 
         {isPro && (
           <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2">
-            All active employees and their availability will be loaded automatically.
+            {t('builderProNote')}
           </p>
         )}
 
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>
           <Button onClick={handleCreate} loading={creating} disabled={!weekStart}>
-            Create Schedule
+            {t('createSchedule')}
           </Button>
         </div>
       </div>

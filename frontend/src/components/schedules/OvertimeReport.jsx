@@ -3,12 +3,14 @@ import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 import { getOvertimeReport } from '../../api/schedules'
 import Spinner from '../common/Spinner'
+import { useTranslations } from '../../i18n'
 
 function isoDate(d) {
   return format(d, 'yyyy-MM-dd')
 }
 
 export default function OvertimeReport() {
+  const { t } = useTranslations()
   const now = new Date()
   const [from, setFrom] = useState(isoDate(startOfMonth(now)))
   const [to,   setTo]   = useState(isoDate(endOfMonth(now)))
@@ -24,7 +26,7 @@ export default function OvertimeReport() {
       const result = await getOvertimeReport(from, to)
       setData(result)
     } catch (err) {
-      setError(err?.response?.data?.detail ?? 'Failed to load overtime report.')
+      setError(err?.response?.data?.detail ?? t('overtimeLoadFail'))
     } finally {
       setLoading(false)
     }
@@ -45,15 +47,15 @@ export default function OvertimeReport() {
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-dark text-sm">Hours Overview</h2>
+          <h2 className="font-semibold text-dark text-sm">{t('hoursOverview')}</h2>
           {hasWarnings && !open && (
             <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
               <ExclamationTriangleIcon className="h-3 w-3" />
-              Overtime risk
+              {t('overtimeRisk')}
             </span>
           )}
           <span className="text-xs text-muted">
-            — cumulative scheduled hours per employee
+            {t('cumulativeHours')}
           </span>
         </div>
         {open
@@ -65,14 +67,14 @@ export default function OvertimeReport() {
         <div className="border-t border-gray-100 px-6 py-4">
           {/* Date range controls */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <label className="text-xs font-semibold text-dark">Period</label>
+            <label className="text-xs font-semibold text-dark">{t('period')}</label>
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
               className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-purple/40"
             />
-            <span className="text-xs text-muted">to</span>
+            <span className="text-xs text-muted">{t('to').toLowerCase()}</span>
             <input
               type="date"
               value={to}
@@ -92,22 +94,22 @@ export default function OvertimeReport() {
           {data && !loading && (
             <>
               <p className="text-xs text-muted mb-3">
-                {data.runs_included} schedule{data.runs_included !== 1 ? 's' : ''} in window
+                {t('schedulesInWindow', data.runs_included)}
               </p>
 
               {data.employees.length === 0 ? (
                 <p className="text-sm text-muted text-center py-4">
-                  No scheduled hours found for this period.
+                  {t('noScheduledHours')}
                 </p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left py-2 pr-4 font-semibold text-muted">Employee</th>
-                        <th className="text-right py-2 px-4 font-semibold text-muted">Total hours</th>
-                        <th className="text-right py-2 px-4 font-semibold text-muted">Shifts</th>
-                        <th className="text-right py-2 pl-4 font-semibold text-muted">Avg hrs/week</th>
+                        <th className="text-left py-2 pr-4 font-semibold text-muted">{t('employeeCol')}</th>
+                        <th className="text-right py-2 px-4 font-semibold text-muted">{t('totalHours')}</th>
+                        <th className="text-right py-2 px-4 font-semibold text-muted">{t('shiftsCol')}</th>
+                        <th className="text-right py-2 pl-4 font-semibold text-muted">{t('avgHoursWeek')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -118,7 +120,7 @@ export default function OvertimeReport() {
                         >
                           <td className="py-2 pr-4 font-medium text-dark flex items-center gap-1.5">
                             {emp.exceeds_48h_week && (
-                              <ExclamationTriangleIcon className="h-3 w-3 text-amber-500 flex-shrink-0" title="Exceeds 48 h/week average" />
+                              <ExclamationTriangleIcon className="h-3 w-3 text-amber-500 flex-shrink-0" title={t('exceeds48')} />
                             )}
                             {emp.name}
                           </td>
@@ -134,7 +136,7 @@ export default function OvertimeReport() {
                   {hasWarnings && (
                     <p className="text-[11px] text-amber-600 mt-2 flex items-center gap-1">
                       <ExclamationTriangleIcon className="h-3 w-3" />
-                      Flagged employees average more than 48 h/week — review before publishing.
+                      {t('overtimeFooter')}
                     </p>
                   )}
                 </div>

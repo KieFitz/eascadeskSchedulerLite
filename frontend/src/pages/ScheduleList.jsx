@@ -16,10 +16,12 @@ import OvertimeReport from '../components/schedules/OvertimeReport'
 import BuilderSetupModal from '../components/schedules/BuilderSetupModal'
 import { deleteSchedule, downloadExport, downloadTemplate, listSchedules, renameSchedule, uploadExcel } from '../api/schedules'
 import { useAuth } from '../context/AuthContext'
+import { useTranslations } from '../i18n'
 import toast from 'react-hot-toast'
 
 export default function ScheduleList() {
   const { user } = useAuth()
+  const { t } = useTranslations()
   const navigate  = useNavigate()
   const fileRef   = useRef(null)
 
@@ -69,7 +71,7 @@ export default function ScheduleList() {
   const handleFile = (f) => {
     if (!f) return
     if (!f.name.endsWith('.xlsx') && !f.name.endsWith('.xls')) {
-      toast.error('Please upload an Excel file (.xlsx or .xls)')
+      toast.error(t('uploadExcelInvalid'))
       return
     }
     setFile(f)
@@ -86,13 +88,13 @@ export default function ScheduleList() {
     setUploading(true)
     try {
       const data = await uploadExcel(file)
-      toast.success(`Uploaded: ${data.employee_count} employees, ${data.shift_slot_count} shift slots`)
+      toast.success(t('uploadedToast', data.employee_count, data.shift_slot_count))
       setFile(null)
       if (fileRef.current) fileRef.current.value = ''
       // Navigate straight to the editor for the new run
       navigate(`/schedules/${data.run_id}`)
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Upload failed. Check your Excel file.')
+      toast.error(err?.response?.data?.detail ?? t('uploadFailExcel'))
     } finally {
       setUploading(false)
     }
@@ -110,15 +112,15 @@ export default function ScheduleList() {
     try {
       await deleteSchedule(runId)
       setRuns((prev) => prev.filter((r) => r.id !== runId))
-      toast.success('Schedule deleted.')
+      toast.success(t('scheduleDeleted'))
     } catch {
-      toast.error('Failed to delete schedule.')
+      toast.error(t('scheduleDeleteFail'))
     }
   }
 
   const handleExport = async (runId) => {
     try { await downloadExport(runId) }
-    catch { toast.error('Export failed.') }
+    catch { toast.error(t('exportFail')) }
   }
 
   const handleRename = async (runId, name) => {
@@ -126,7 +128,7 @@ export default function ScheduleList() {
       const updated = await renameSchedule(runId, name)
       setRuns((prev) => prev.map((r) => r.id === runId ? { ...r, name: updated.name } : r))
     } catch {
-      toast.error('Failed to rename schedule.')
+      toast.error(t('renameFail'))
     }
   }
 
@@ -138,24 +140,24 @@ export default function ScheduleList() {
   const rest = runs.filter((r) => r !== active)
 
   return (
-    <Layout title="My Schedules">
+    <Layout title={t('mySchedulesTitle')}>
       {/* ── Upload card ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-soft mb-5">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="font-semibold text-dark">New Schedule</h2>
+            <h2 className="font-semibold text-dark">{t('newSchedule')}</h2>
             <p className="text-xs text-muted mt-0.5">
-              Upload an Excel file or build a schedule directly in the app.
+              {t('newScheduleSub')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="secondary" size="sm" onClick={() => setBuilderOpen(true)}>
               <PencilSquareIcon className="h-4 w-4" />
-              Build Schedule
+              {t('buildSchedule')}
             </Button>
             <Button variant="primary" size="sm" onClick={handleTemplateDownload} loading={templateDownloading}>
               <DocumentArrowDownIcon className="h-4 w-4" />
-              Download Template
+              {t('downloadTemplate')}
             </Button>
           </div>
         </div>
@@ -183,25 +185,25 @@ export default function ScheduleList() {
               <div className="flex flex-col items-center gap-1">
                 <DocumentArrowDownIcon className="h-8 w-8 text-brand-teal" />
                 <p className="font-medium text-dark text-sm">{file.name}</p>
-                <p className="text-xs text-muted">{(file.size / 1024).toFixed(1)} KB · Click to change</p>
+                <p className="text-xs text-muted">{(file.size / 1024).toFixed(1)} KB · {t('clickToChange')}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
                 <ArrowUpTrayIcon className="h-8 w-8 text-muted" />
-                <p className="font-medium text-dark text-sm">Drop your schedule Excel here</p>
-                <p className="text-xs text-muted">or click to browse · .xlsx or .xls</p>
+                <p className="font-medium text-dark text-sm">{t('dropScheduleExcel')}</p>
+                <p className="text-xs text-muted">{t('dropOrBrowse')}</p>
               </div>
             )}
           </div>
           <div className="flex items-center gap-3 mt-4">
             <Button onClick={handleUpload} disabled={!file} loading={uploading}>
               <ArrowUpTrayIcon className="h-4 w-4" />
-              Upload &amp; Open
+              {t('uploadAndOpen')}
             </Button>
             {file && (
               <Button variant="ghost" size="sm" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }}>
                 <XCircleIcon className="h-4 w-4" />
-                Clear
+                {t('clear')}
               </Button>
             )}
           </div>
@@ -217,7 +219,7 @@ export default function ScheduleList() {
       {active && (
         <div className="mb-5">
           <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-            Active schedule (this week)
+            {t('activeScheduleThisWeek')}
           </h3>
           <ScheduleCard
             run={active}
@@ -237,15 +239,15 @@ export default function ScheduleList() {
         <div className="bg-white rounded-xl shadow-soft">
           <EmptyState
             icon={CalendarDaysIcon}
-            title="No schedules yet"
-            description="Upload an Excel file above to create your first schedule."
+            title={t('noSchedulesYet')}
+            description={t('noSchedulesDesc')}
           />
         </div>
       ) : (
         <div>
           {rest.length > 0 && (
             <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-              {active ? 'All schedules' : 'Schedules'}
+              {active ? t('allSchedules') : t('schedules')}
             </h3>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

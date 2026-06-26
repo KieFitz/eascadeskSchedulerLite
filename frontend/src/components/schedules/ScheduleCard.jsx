@@ -9,22 +9,24 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline'
 import Button from '../common/Button'
+import { useTranslations } from '../../i18n'
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status, isPublished }) {
+  const { t } = useTranslations()
   if (isPublished) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
         <GlobeAltIcon className="h-3 w-3" />
-        Published
+        {t('published')}
       </span>
     )
   }
   const map = {
-    pending:    { label: 'Draft',    cls: 'bg-gray-100 text-gray-600' },
-    processing: { label: 'Solving…', cls: 'bg-amber-100 text-amber-700 animate-pulse' },
-    completed:  { label: 'Solved',   cls: 'bg-brand-lavender-light text-brand-purple' },
-    failed:     { label: 'Failed',   cls: 'bg-red-100 text-red-600' },
+    pending:    { label: t('statusDraft'),   cls: 'bg-gray-100 text-gray-600' },
+    processing: { label: t('statusSolving'), cls: 'bg-amber-100 text-amber-700 animate-pulse' },
+    completed:  { label: t('statusSolved'),  cls: 'bg-brand-lavender-light text-brand-purple' },
+    failed:     { label: t('statusFailed'),  cls: 'bg-red-100 text-red-600' },
   }
   const { label, cls } = map[status] ?? map.pending
   return (
@@ -48,6 +50,7 @@ function DateRange({ dateFrom, dateTo }) {
 
 export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
   const navigate = useNavigate()
+  const { t } = useTranslations()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing]             = useState(false)
   const [nameVal, setNameVal]             = useState(run.name ?? '')
@@ -67,8 +70,8 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
   }
 
   const defaultName = run.date_from
-    ? `Schedule ${format(parseISO(run.date_from), 'd MMM')}${run.date_to && run.date_to !== run.date_from ? ' – ' + format(parseISO(run.date_to), 'd MMM yyyy') : ''}`
-    : `Schedule ${format(parseISO(run.created_at), 'd MMM yyyy')}`
+    ? `${t('scheduleNamePrefix')} ${format(parseISO(run.date_from), 'd MMM')}${run.date_to && run.date_to !== run.date_from ? ' – ' + format(parseISO(run.date_to), 'd MMM yyyy') : ''}`
+    : `${t('scheduleNamePrefix')} ${format(parseISO(run.created_at), 'd MMM yyyy')}`
 
   const displayName = run.name || defaultName
 
@@ -94,7 +97,7 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
               <button
                 onClick={() => setEditing(true)}
                 className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-gray-100"
-                title="Rename"
+                title={t('rename')}
               >
                 <PencilIcon className="h-3 w-3 text-muted" />
               </button>
@@ -107,9 +110,9 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
 
       {/* Stats row */}
       <div className="flex items-center gap-4 text-xs text-muted">
-        <span>{empCount} employee{empCount !== 1 ? 's' : ''}</span>
+        <span>{t('employeesCount', empCount)}</span>
         <span>·</span>
-        <span>{shiftCount} shift slot{shiftCount !== 1 ? 's' : ''}</span>
+        <span>{t('shiftSlotsCount', shiftCount)}</span>
         {run.score_info && (
           <>
             <span>·</span>
@@ -126,14 +129,14 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
           className="flex-1"
         >
           <ArrowRightIcon className="h-3.5 w-3.5" />
-          Open
+          {t('open')}
         </Button>
 
         {(run.status === 'completed') && (
           <button
             onClick={() => onExport(run.id)}
             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-muted hover:text-dark transition-colors"
-            title="Export to Excel"
+            title={t('exportToExcel')}
           >
             <ArrowDownTrayIcon className="h-4 w-4" />
           </button>
@@ -146,7 +149,7 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
               ? 'border-red-300 bg-red-50 text-red-600 hover:bg-red-100'
               : 'border-gray-200 hover:bg-gray-50 text-muted hover:text-red-500'
           }`}
-          title={confirmDelete ? 'Click again to confirm deletion' : 'Delete schedule'}
+          title={confirmDelete ? t('confirmDeleteAgain') : t('deleteSchedule')}
         >
           <TrashIcon className="h-4 w-4" />
         </button>
@@ -154,7 +157,7 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
 
       {confirmDelete && (
         <p className="text-xs text-red-600 text-center">
-          Click the bin again to confirm — this cannot be undone.
+          {t('deleteScheduleConfirm')}
         </p>
       )}
     </div>

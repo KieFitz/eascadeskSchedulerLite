@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { register } from '../api/auth'
+import { useTranslations } from '../i18n'
 import Input from '../components/common/Input'
 import Button from '../components/common/Button'
 import toast from 'react-hot-toast'
 
 export default function Signup() {
+  const { t } = useTranslations()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,17 +19,17 @@ export default function Signup() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (password.length < 8) {
-      toast.error('Password must be at least 8 characters')
+      toast.error(t('passwordTooShort'))
       return
     }
     setSubmitting(true)
     try {
       await register(username, email, password)
       await login(email, password)
-      toast.success('Account created! Welcome to Eascadesk Scheduler.')
+      toast.success(t('accountCreated'))
       navigate('/')
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Could not create account. Please try again.')
+      toast.error(err?.response?.data?.detail ?? t('accountCreateFail'))
     } finally {
       setSubmitting(false)
     }
@@ -42,23 +44,23 @@ export default function Signup() {
             <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center mx-auto mb-3">
               <span className="text-white font-bold text-xl">E</span>
             </div>
-            <h1 className="text-white font-semibold text-xl">Create your account</h1>
-            <p className="text-white/70 text-sm mt-1">Free · No credit card required</p>
+            <h1 className="text-white font-semibold text-xl">{t('createAccount')}</h1>
+            <p className="text-white/70 text-sm mt-1">{t('signupSubtitle')}</p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="px-8 py-8 space-y-4">
             <Input
-              label="Username"
+              label={t('usernameLabel')}
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="yourname"
+              placeholder={t('usernamePlaceholder')}
               required
               autoFocus
             />
             <Input
-              label="Email"
+              label={t('emailLabel')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -66,11 +68,11 @@ export default function Signup() {
               required
             />
             <Input
-              label="Password"
+              label={t('passwordLabel')}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min. 8 characters"
+              placeholder={t('passwordMinPlaceholder')}
               required
             />
             <Button
@@ -79,15 +81,15 @@ export default function Signup() {
               size="lg"
               loading={submitting}
             >
-              Create free account
+              {t('createFreeAccount')}
             </Button>
           </form>
         </div>
 
         <p className="text-center text-sm text-muted mt-4">
-          Already have an account?{' '}
+          {t('haveAccount')}{' '}
           <Link to="/login" className="text-brand-purple font-medium hover:underline">
-            Sign in
+            {t('signIn')}
           </Link>
         </p>
 

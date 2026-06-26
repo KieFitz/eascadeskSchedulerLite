@@ -25,9 +25,9 @@ import {
   requestClockEventEdit,
 } from '../api/clock'
 import { listEmployees } from '../api/employees'
+import { useTranslations } from '../i18n'
 
 const EVENT_COLOUR  = { in: 'teal', out: 'amber', break_start: 'gray', break_end: 'gray' }
-const EVENT_LABEL   = { in: 'Clock in', out: 'Clock out', break_start: 'Break start', break_end: 'Break end' }
 const SOURCE_COLOUR = { whatsapp: 'purple', manual: 'gray', auto: 'amber' }
 const ACTION_COLOUR = { create: 'teal', edit: 'gray', delete: 'red' }
 
@@ -40,6 +40,11 @@ function formatDateTime(iso) {
 }
 
 export default function ClockEvents() {
+  const { t } = useTranslations()
+  const EVENT_LABEL = {
+    in: t('clockIn'), out: t('clockOut'),
+    break_start: t('breakStart'), break_end: t('breakEnd'),
+  }
   const [events, setEvents]       = useState([])
   const [total, setTotal]         = useState(0)
   const [employees, setEmployees] = useState([])
@@ -91,7 +96,7 @@ export default function ClockEvents() {
       setTotal(t)
       setEvents(items)
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to load clock events')
+      toast.error(err?.response?.data?.detail ?? t('loadClockFail'))
     }
   }, [filterEmp, filterFrom, filterTo, showDeleted, perPage, page])
 
@@ -130,7 +135,7 @@ export default function ClockEvents() {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch {
-      toast.error('Export failed')
+      toast.error(t('exportFail'))
     } finally {
       setLoaderFn(false)
     }
@@ -161,9 +166,9 @@ export default function ClockEvents() {
       })
       setEditTarget(null)
       await fetchEvents()
-      toast.success('Edit request sent — awaiting employee approval via WhatsApp')
+      toast.success(t('editRequestSent'))
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to send edit request')
+      toast.error(err?.response?.data?.detail ?? t('editRequestFail'))
     } finally {
       setEditSaving(false)
     }
@@ -176,9 +181,9 @@ export default function ClockEvents() {
       await deleteClockEvent(deleteTarget.id, deleteReason || undefined)
       setDeleteTarget(null)
       await fetchEvents()
-      toast.success('Event deleted (kept in audit log)')
+      toast.success(t('eventDeletedAudit'))
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Delete failed')
+      toast.error(err?.response?.data?.detail ?? t('deleteFail'))
     } finally {
       setDeleting(false)
     }
@@ -197,9 +202,9 @@ export default function ClockEvents() {
       setModalOpen(false)
       setManualForm({ employeeId: '', eventType: 'in', eventAt: '', reason: '' })
       await fetchEvents()
-      toast.success(`Manual ${created.event_type} recorded`)
+      toast.success(t('manualRecorded', (EVENT_LABEL[created.event_type] ?? created.event_type)))
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to record event')
+      toast.error(err?.response?.data?.detail ?? t('recordEventFail'))
     } finally {
       setSaving(false)
     }
@@ -213,36 +218,35 @@ export default function ClockEvents() {
       const data = await getClockEventAudit(e.id)
       setAuditLog(data)
     } catch {
-      toast.error('Failed to load audit trail')
+      toast.error(t('loadAuditFail'))
     } finally {
       setAuditLoading(false)
     }
   }
 
   return (
-    <Layout title="Clock Events">
+    <Layout title={t('clockEventsTitle')}>
       <div className="bg-white rounded-xl shadow-soft">
         {/* Header + actions */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="font-semibold text-dark">Clock In / Out Log</h2>
+            <h2 className="font-semibold text-dark">{t('clockLogTitle')}</h2>
             <p className="text-xs text-muted mt-0.5">
-              Actual hours worked — recorded via WhatsApp bot or entered manually.
-              All deletions are soft-deleted and retained for compliance.
+              {t('clockLogIntro')}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={handleExportRecords} loading={exporting}>
               <ArrowDownTrayIcon className="h-4 w-4" />
-              Export records
+              {t('exportRecords')}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleExportCompliance} loading={compExporting}>
               <ArrowDownTrayIcon className="h-4 w-4" />
-              Export for compliance
+              {t('exportCompliance')}
             </Button>
             <Button size="sm" onClick={() => setModalOpen(true)}>
               <PlusIcon className="h-4 w-4" />
-              Manual entry
+              {t('manualEntry')}
             </Button>
           </div>
         </div>
@@ -251,22 +255,22 @@ export default function ClockEvents() {
         <div className="px-6 py-3 border-b border-gray-100">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">Employee</label>
+              <label className="text-xs text-muted">{t('employeeCol')}</label>
               <Select
                 size="sm"
                 value={filterEmp}
                 onChange={setFilterEmp}
-                placeholder="All employees"
+                placeholder={t('allEmployees')}
                 options={employees.map((e) => ({ value: e.id, label: e.name }))}
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">Month (export)</label>
+              <label className="text-xs text-muted">{t('monthExport')}</label>
               <Select
                 size="sm"
                 value={filterMonth}
                 onChange={setFilterMonth}
-                placeholder="All months"
+                placeholder={t('allMonths')}
                 options={Array.from({ length: 13 }, (_, i) => {
                   const d = new Date()
                   d.setDate(1)
@@ -278,7 +282,7 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">From</label>
+              <label className="text-xs text-muted">{t('from')}</label>
               <input
                 type="date"
                 value={filterFrom}
@@ -287,7 +291,7 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">To</label>
+              <label className="text-xs text-muted">{t('to')}</label>
               <input
                 type="date"
                 value={filterTo}
@@ -296,14 +300,14 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">Rows per page</label>
+              <label className="text-xs text-muted">{t('rowsPerPage')}</label>
               <Select
                 size="sm"
                 value={String(perPage)}
                 onChange={(v) => setPerPage(Number(v))}
                 options={[
-                  { value: '50', label: '50 rows' },
-                  { value: '100', label: '100 rows' },
+                  { value: '50', label: t('rowsN', 50) },
+                  { value: '100', label: t('rowsN', 100) },
                 ]}
               />
             </div>
@@ -316,7 +320,7 @@ export default function ClockEvents() {
                   onChange={(e) => setShowDeleted(e.target.checked)}
                   className="rounded border-gray-300 text-brand-purple focus:ring-brand-purple"
                 />
-                <label htmlFor="show-deleted" className="text-sm text-muted select-none whitespace-nowrap">Show deleted</label>
+                <label htmlFor="show-deleted" className="text-sm text-muted select-none whitespace-nowrap">{t('showDeleted')}</label>
               </div>
               {(filterEmp || filterMonth || filterFrom || filterTo) && (
                 <Button
@@ -324,7 +328,7 @@ export default function ClockEvents() {
                   size="sm"
                   onClick={() => { setFilterEmp(''); setFilterMonth(''); setFilterFrom(''); setFilterTo('') }}
                 >
-                  Clear
+                  {t('clear')}
                 </Button>
               )}
             </div>
@@ -337,21 +341,21 @@ export default function ClockEvents() {
         ) : events.length === 0 ? (
           <EmptyState
             icon={ClockIcon}
-            title="No clock events"
-            description="Events are recorded when employees message the WhatsApp bot, or via manual entry."
+            title={t('noClockEvents')}
+            description={t('noClockEventsDesc')}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs uppercase tracking-wider text-muted">
                 <tr>
-                  <th className="px-4 py-3 text-left">Employee</th>
-                  <th className="px-4 py-3 text-left">Phone</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Date / Time</th>
-                  <th className="px-4 py-3 text-left">Source</th>
-                  <th className="px-4 py-3 text-left">Flags</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 text-left">{t('employeeCol')}</th>
+                  <th className="px-4 py-3 text-left">{t('phone')}</th>
+                  <th className="px-4 py-3 text-left">{t('type')}</th>
+                  <th className="px-4 py-3 text-left">{t('colDateTime')}</th>
+                  <th className="px-4 py-3 text-left">{t('colSource')}</th>
+                  <th className="px-4 py-3 text-left">{t('colFlags')}</th>
+                  <th className="px-4 py-3 text-right">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -374,18 +378,18 @@ export default function ClockEvents() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {e.is_estimated && (
-                          <Badge colour="amber" title="Time was auto-filled from scheduled shift — please review">
-                            Estimated
+                          <Badge colour="amber" title={t('estimatedTitle')}>
+                            {t('estimated')}
                           </Badge>
                         )}
                         {e.pending_edit && (
-                          <Badge colour="purple" title={`Edit proposed: ${formatDateTime(e.pending_edit.proposed_event_at)}${e.pending_edit.reason ? ' — ' + e.pending_edit.reason : ''} · Awaiting employee approval`}>
-                            Pending edit
+                          <Badge colour="purple" title={`${formatDateTime(e.pending_edit.proposed_event_at)}${e.pending_edit.reason ? ' — ' + e.pending_edit.reason : ''}`}>
+                            {t('pendingEdit')}
                           </Badge>
                         )}
                         {e.deleted_at && (
-                          <Badge colour="red" title={`Deleted ${formatDateTime(e.deleted_at)}${e.delete_reason ? ': ' + e.delete_reason : ''}`}>
-                            Deleted
+                          <Badge colour="red" title={`${formatDateTime(e.deleted_at)}${e.delete_reason ? ': ' + e.delete_reason : ''}`}>
+                            {t('deletedBadge')}
                           </Badge>
                         )}
                       </div>
@@ -395,7 +399,7 @@ export default function ClockEvents() {
                         <button
                           onClick={() => openAuditPanel(e)}
                           className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
-                          title="View audit trail"
+                          title={t('viewAuditTrail')}
                         >
                           <EyeIcon className="h-4 w-4" />
                         </button>
@@ -403,7 +407,7 @@ export default function ClockEvents() {
                           <button
                             onClick={() => openEditModal(e)}
                             className="text-muted hover:text-brand-purple p-1.5 rounded transition-colors"
-                            title={e.pending_edit ? 'Replace pending edit request' : 'Propose time correction'}
+                            title={e.pending_edit ? t('replacePendingEdit') : t('proposeCorrection')}
                           >
                             <PencilSquareIcon className="h-4 w-4" />
                           </button>
@@ -412,7 +416,7 @@ export default function ClockEvents() {
                           <button
                             onClick={() => openDeleteModal(e)}
                             className="text-muted hover:text-red-500 p-1.5 rounded transition-colors"
-                            title="Delete event"
+                            title={t('deleteEvent')}
                           >
                             <TrashIcon className="h-4 w-4" />
                           </button>
@@ -426,8 +430,8 @@ export default function ClockEvents() {
             {/* Pagination footer */}
             <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
               <p className="text-xs text-muted">
-                Showing {total === 0 ? 0 : page * perPage + 1}–{Math.min((page + 1) * perPage, total)} of {total} event{total !== 1 ? 's' : ''}
-                {showDeleted && ' (including deleted)'}
+                {t('showingEvents', total === 0 ? 0 : page * perPage + 1, Math.min((page + 1) * perPage, total), total)}
+                {showDeleted && t('includingDeleted')}
               </p>
               <div className="flex items-center gap-1">
                 <button
@@ -445,7 +449,7 @@ export default function ClockEvents() {
                   ‹
                 </button>
                 <span className="px-3 py-1 text-xs text-dark">
-                  Page {page + 1} of {Math.max(1, Math.ceil(total / perPage))}
+                  {t('pageOf', page + 1, Math.max(1, Math.ceil(total / perPage)))}
                 </span>
                 <button
                   onClick={() => setPage((p) => p + 1)}
@@ -468,44 +472,44 @@ export default function ClockEvents() {
       </div>
 
       {/* Manual entry modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Manual clock entry">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t('manualClockEntry')}>
         <div className="space-y-3">
           <Select
-            label={<>Employee <span className="text-red-500">*</span></>}
+            label={<>{t('employeeCol')} <span className="text-red-500">*</span></>}
             value={manualForm.employeeId}
             onChange={(v) => setManualForm({ ...manualForm, employeeId: v })}
-            placeholder="Select employee…"
+            placeholder={t('selectEmployee')}
             options={employees.map((emp) => ({ value: emp.id, label: emp.name }))}
           />
           <Select
-            label="Event type"
+            label={t('eventType')}
             value={manualForm.eventType}
             onChange={(v) => setManualForm({ ...manualForm, eventType: v })}
             options={[
-              { value: 'in', label: 'Clock in' },
-              { value: 'out', label: 'Clock out' },
+              { value: 'in', label: t('clockIn') },
+              { value: 'out', label: t('clockOut') },
             ]}
           />
           <Input
-            label="Date & time (leave blank for now)"
+            label={t('dateTimeBlank')}
             type="datetime-local"
             value={manualForm.eventAt}
             onChange={(e) => setManualForm({ ...manualForm, eventAt: e.target.value })}
           />
           <Input
-            label="Reason / note (for audit trail)"
+            label={t('reasonNote')}
             value={manualForm.reason}
             onChange={(e) => setManualForm({ ...manualForm, reason: e.target.value })}
-            placeholder="e.g. Employee forgot to clock in via WhatsApp"
+            placeholder={t('reasonNotePlaceholder')}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
             <Button
               onClick={handleManualSave}
               loading={saving}
               disabled={!manualForm.employeeId}
             >
-              Record event
+              {t('recordEvent')}
             </Button>
           </div>
         </div>
@@ -515,13 +519,11 @@ export default function ClockEvents() {
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title="Delete clock event"
+        title={t('deleteClockEvent')}
       >
         <div className="space-y-3">
           <p className="text-sm text-dark">
-            This event will be marked as deleted but <strong>kept in the database</strong> for
-            Spanish digital clocking compliance. The deletion will be recorded in the audit log
-            with your user ID and timestamp.
+            {t('deleteClockBody')}
           </p>
           {deleteTarget && (
             <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
@@ -529,19 +531,19 @@ export default function ClockEvents() {
             </p>
           )}
           <Input
-            label="Reason for deletion (recommended)"
+            label={t('reasonForDeletion')}
             value={deleteReason}
             onChange={(e) => setDeleteReason(e.target.value)}
-            placeholder="e.g. Duplicate entry, employee clocked twice"
+            placeholder={t('reasonDeletionPlaceholder')}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>{t('cancel')}</Button>
             <Button
               onClick={handleDeleteConfirm}
               loading={deleting}
               className="bg-red-500 hover:bg-red-600 text-white"
             >
-              Confirm delete
+              {t('confirmDelete')}
             </Button>
           </div>
         </div>
@@ -551,7 +553,7 @@ export default function ClockEvents() {
       <Modal
         open={!!auditEvent}
         onClose={() => setAuditEvent(null)}
-        title="Audit trail"
+        title={t('auditTrail')}
       >
         {auditEvent && (
           <div className="space-y-4">
@@ -564,9 +566,9 @@ export default function ClockEvents() {
               <>
                 {/* Audit log */}
                 <div>
-                  <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Change log</p>
+                  <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t('changeLog')}</p>
                   {auditLog.audit_log?.length === 0 ? (
-                    <p className="text-sm text-muted text-center py-2">No entries.</p>
+                    <p className="text-sm text-muted text-center py-2">{t('noEntries')}</p>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {auditLog.audit_log?.map((entry) => (
@@ -575,9 +577,9 @@ export default function ClockEvents() {
                             <Badge colour={ACTION_COLOUR[entry.action] ?? 'gray'}>{entry.action}</Badge>
                             <span className="text-xs text-muted">{formatDateTime(entry.created_at)}</span>
                           </div>
-                          <p className="text-xs text-dark"><span className="font-medium">By:</span> {entry.actor_label}</p>
+                          <p className="text-xs text-dark"><span className="font-medium">{t('auditBy')}</span> {entry.actor_label}</p>
                           {entry.reason && (
-                            <p className="text-xs text-muted mt-0.5"><span className="font-medium">Reason:</span> {entry.reason}</p>
+                            <p className="text-xs text-muted mt-0.5"><span className="font-medium">{t('auditReason')}</span> {entry.reason}</p>
                           )}
                         </div>
                       ))}
@@ -588,7 +590,7 @@ export default function ClockEvents() {
                 {/* Edit requests */}
                 {auditLog.edit_requests?.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Edit requests</p>
+                    <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t('editRequests')}</p>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {auditLog.edit_requests.map((req) => (
                         <div key={req.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
@@ -598,9 +600,9 @@ export default function ClockEvents() {
                             </Badge>
                             <span className="text-xs text-muted">{formatDateTime(req.created_at)}</span>
                           </div>
-                          <p className="text-xs text-dark"><span className="font-medium">Proposed:</span> {formatDateTime(req.proposed_event_at)}</p>
-                          {req.reason && <p className="text-xs text-muted mt-0.5"><span className="font-medium">Reason:</span> {req.reason}</p>}
-                          {req.resolved_at && <p className="text-xs text-muted mt-0.5"><span className="font-medium">Resolved:</span> {formatDateTime(req.resolved_at)}</p>}
+                          <p className="text-xs text-dark"><span className="font-medium">{t('auditProposed')}</span> {formatDateTime(req.proposed_event_at)}</p>
+                          {req.reason && <p className="text-xs text-muted mt-0.5"><span className="font-medium">{t('auditReason')}</span> {req.reason}</p>}
+                          {req.resolved_at && <p className="text-xs text-muted mt-0.5"><span className="font-medium">{t('auditResolved')}</span> {formatDateTime(req.resolved_at)}</p>}
                         </div>
                       ))}
                     </div>
@@ -609,7 +611,7 @@ export default function ClockEvents() {
               </>
             )}
             <div className="flex justify-end pt-1">
-              <Button variant="ghost" onClick={() => setAuditEvent(null)}>Close</Button>
+              <Button variant="ghost" onClick={() => setAuditEvent(null)}>{t('close')}</Button>
             </div>
           </div>
         )}
@@ -619,12 +621,11 @@ export default function ClockEvents() {
       <Modal
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
-        title="Propose time correction"
+        title={t('proposeCorrection')}
       >
         <div className="space-y-3">
           <p className="text-sm text-dark">
-            The employee will receive a WhatsApp message asking them to approve or reject this correction.
-            The original time is unchanged until they approve.
+            {t('correctionBody')}
           </p>
           {editTarget && (
             <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
@@ -632,25 +633,25 @@ export default function ClockEvents() {
             </p>
           )}
           <Input
-            label="Corrected date & time"
+            label={t('correctedDateTime')}
             type="datetime-local"
             value={editForm.proposedEventAt}
             onChange={(e) => setEditForm({ ...editForm, proposedEventAt: e.target.value })}
           />
           <Input
-            label="Reason for correction (recommended)"
+            label={t('reasonCorrection')}
             value={editForm.reason}
             onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
-            placeholder="e.g. Employee forgot to clock in, was on site from 09:00"
+            placeholder={t('reasonCorrectionPlaceholder')}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setEditTarget(null)}>{t('cancel')}</Button>
             <Button
               onClick={handleEditSave}
               loading={editSaving}
               disabled={!editForm.proposedEventAt}
             >
-              Send for approval
+              {t('sendForApproval')}
             </Button>
           </div>
         </div>

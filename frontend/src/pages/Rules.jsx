@@ -31,14 +31,10 @@ const COUNTRY_DEFAULT_TZ = {
 
 export default function Rules() {
   const { user, refreshUser } = useAuth()
-  const { t } = useTranslations(user?.country)
+  const { t } = useTranslations()
   const [selected, setSelected] = useState(user?.country ?? null)
   const [timezone, setTimezone] = useState(user?.timezone ?? '')
   const [saving, setSaving] = useState(false)
-
-  // When the page is rendered with a different country in-progress selection,
-  // preview that country's translations but keep the locale based on saved country.
-  const { t: tSel } = useTranslations(selected)
 
   useEffect(() => {
     setSelected(user?.country ?? null)
@@ -128,7 +124,7 @@ export default function Rules() {
             <div className="bg-white rounded-xl shadow-soft p-6 mb-5">
               <h3 className="font-semibold text-dark mb-3 flex items-center gap-2">
                 <span>{country.flag}</span>
-                {country.name} — {tSel('schedulingConstraints')}
+                {country.name} — {t('schedulingConstraints')}
               </h3>
               <ul className="space-y-2">
                 {country.rules.map((rule, i) => (
@@ -138,7 +134,7 @@ export default function Rules() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted mt-4 italic">{tSel('constraintsNote')}</p>
+              <p className="text-xs text-muted mt-4 italic">{t('constraintsNote')}</p>
             </div>
           ) : null
         })()}
@@ -150,14 +146,14 @@ export default function Rules() {
               <ClockIcon className="h-6 w-6 text-brand-purple" />
             </div>
             <div className="flex-1">
-              <h2 className="font-semibold text-dark mb-1">Business Timezone</h2>
+              <h2 className="font-semibold text-dark mb-1">{t('businessTimezone')}</h2>
               <p className="text-sm text-muted leading-relaxed mb-3">
-                Times shown to employees in WhatsApp messages (clock-in/out confirmations) use this timezone.
+                {t('businessTimezoneDesc')}
               </p>
               <Select
                 value={timezone}
                 onChange={setTimezone}
-                placeholder="— Select timezone —"
+                placeholder={t('selectTimezone')}
                 options={TIMEZONES.map((tz) => ({ value: tz.value, label: tz.label }))}
               />
             </div>

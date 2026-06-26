@@ -49,15 +49,15 @@ function SolveDotsCounter({ used, limit }) {
 }
 
 // ── Solving progress banner ───────────────────────────────────────────────────
-function SolvingBanner() {
+function SolvingBanner({ t }) {
   return (
     <div className="relative border-b border-teal-200 bg-teal-50 px-4 py-2.5 flex items-center justify-between gap-4 overflow-hidden">
       <div className="flex items-center gap-2.5">
         <Spinner size="sm" className="text-teal-600" />
-        <span className="text-sm font-medium text-teal-800">Optimising schedule…</span>
+        <span className="text-sm font-medium text-teal-800">{t('optimisingSchedule')}</span>
       </div>
       <span className="text-xs text-teal-600 hidden sm:block">
-        You can navigate away — the result will be ready when you return.
+        {t('navigateAwayHint')}
       </span>
       {/* Indeterminate progress bar */}
       <div className="absolute bottom-0 left-0 h-0.5 w-full bg-teal-100" aria-hidden>
@@ -68,7 +68,7 @@ function SolvingBanner() {
 }
 
 // ── Violations panel ──────────────────────────────────────────────────────────
-function ViolationsPanel({ violations, shifts, onDismiss }) {
+function ViolationsPanel({ violations, shifts, onDismiss, t }) {
   const [collapsed, setCollapsed] = useState(false)
 
   // Flatten violations map → array, enriched with shift time info
@@ -112,14 +112,14 @@ function ViolationsPanel({ violations, shifts, onDismiss }) {
             : <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 flex-shrink-0" />}
           <span className={hardCount > 0 ? 'text-red-700' : 'text-amber-700'}>
             {hardCount > 0
-              ? `${hardCount} hard violation${hardCount !== 1 ? 's' : ''}${softCount > 0 ? ` · ${softCount} warning${softCount !== 1 ? 's' : ''}` : ''}`
-              : `${softCount} warning${softCount !== 1 ? 's' : ''}`}
+              ? t('hardViolationsLabel', hardCount, softCount)
+              : t('warningsLabel', softCount)}
           </span>
           {collapsed
             ? <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400" />
             : <ChevronUpIcon className="h-3.5 w-3.5 text-gray-400" />}
         </button>
-        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 ml-2" title="Dismiss">
+        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 ml-2" title={t('dismiss')}>
           <XMarkIcon className="h-4 w-4" />
         </button>
       </div>
@@ -155,7 +155,7 @@ export default function ScheduleEditor() {
   const { runId } = useParams()
   const navigate  = useNavigate()
   const { user }  = useAuth()
-  const { t, isSpanish } = useTranslations(user?.country)
+  const { t, isSpanish } = useTranslations()
 
   // ── Loading / error state ─────────────────────────────────────────────────
   const [pageLoading, setPageLoading] = useState(true)
@@ -248,9 +248,9 @@ export default function ScheduleEditor() {
           applyRun(r)
           refreshUsage()
           if (r.status === 'completed') {
-            toast.success('Schedule optimised!')
+            toast.success(t('scheduleOptimised'))
           } else if (r.status === 'failed') {
-            toast.error(r.error_message ?? 'Solve failed.')
+            toast.error(r.error_message ?? t('solveFailed'))
           }
         }
       } catch { /* ignore transient errors */ }
@@ -269,7 +269,7 @@ export default function ScheduleEditor() {
         }
       } catch (err) {
         if (!cancelled) {
-          setPageError(err?.response?.data?.detail ?? 'Schedule not found.')
+          setPageError(err?.response?.data?.detail ?? t('scheduleNotFound'))
         }
       } finally {
         if (!cancelled) setPageLoading(false)
@@ -371,9 +371,9 @@ export default function ScheduleEditor() {
       await updateAssignments(runId, assignments, shifts)
       setHasUnsavedEdits(false)
       setSolved(true)
-      if (!silent) toast.success('Changes saved.')
+      if (!silent) toast.success(t('changesSaved'))
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to save changes.')
+      toast.error(err?.response?.data?.detail ?? t('saveChangesFail'))
     } finally {
       setSaving(false)
     }
@@ -395,15 +395,14 @@ export default function ScheduleEditor() {
       const hardCount = allViolations.filter((v) => v.severity === 'hard').length
       const softCount = allViolations.filter((v) => v.severity !== 'hard').length
       if (hardCount === 0 && softCount === 0) {
-        toast.success('No constraint violations found.')
+        toast.success(t('noViolationsFound'))
       } else if (hardCount === 0) {
-        toast.success(`No hard violations. ${softCount} overtime warning${softCount !== 1 ? 's' : ''} — highlighted in amber.`)
+        toast.success(t('noHardWarnings', softCount))
       } else {
-        const msg = `${hardCount} hard violation${hardCount !== 1 ? 's' : ''}${softCount > 0 ? ` · ${softCount} warning${softCount !== 1 ? 's' : ''}` : ''} — see shifts highlighted in the schedule.`
-        toast.error(msg)
+        toast.error(t('validationViolations', hardCount, softCount))
       }
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Validation failed.')
+      toast.error(err?.response?.data?.detail ?? t('validationFail'))
     } finally {
       setValidating(false)
     }
@@ -418,14 +417,14 @@ export default function ScheduleEditor() {
       if (isPublished) {
         await unpublishSchedule(runId)
         setIsPublished(false)
-        toast.success('Schedule unpublished.')
+        toast.success(t('scheduleUnpublished'))
       } else {
         await publishSchedule(runId)
         setIsPublished(true)
-        toast.success('Schedule published!')
+        toast.success(t('schedulePublished'))
       }
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? 'Failed to update published status.')
+      toast.error(err?.response?.data?.detail ?? t('publishStatusFail'))
     } finally {
       setPublishing(false)
     }
@@ -447,7 +446,7 @@ export default function ScheduleEditor() {
   // ── Render ────────────────────────────────────────────────────────────────
   if (pageLoading) {
     return (
-      <Layout title="Schedule">
+      <Layout title={t('scheduleTitle')}>
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
@@ -457,12 +456,12 @@ export default function ScheduleEditor() {
 
   if (pageError) {
     return (
-      <Layout title="Schedule">
+      <Layout title={t('scheduleTitle')}>
         <div className="bg-white rounded-xl shadow-soft p-10 text-center">
           <p className="text-red-600 font-medium mb-3">{pageError}</p>
           <Button onClick={() => navigate('/schedules')}>
             <ArrowLeftIcon className="h-4 w-4" />
-            Back to Schedules
+            {t('backToSchedules')}
           </Button>
         </div>
       </Layout>
@@ -470,7 +469,7 @@ export default function ScheduleEditor() {
   }
 
   return (
-    <Layout title={run?.name || dateRangeLabel || 'Schedule'}>
+    <Layout title={run?.name || dateRangeLabel || t('scheduleTitle')}>
       {/* ── Gantt Card ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl shadow-soft">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
@@ -481,7 +480,7 @@ export default function ScheduleEditor() {
               className="flex items-center gap-1 text-xs text-muted hover:text-dark mb-1 transition-colors"
             >
               <ArrowLeftIcon className="h-3 w-3" />
-              My Schedules
+              {t('mySchedulesLink')}
             </button>
 
             <h2 className="font-semibold text-dark flex items-center gap-2">
@@ -489,25 +488,25 @@ export default function ScheduleEditor() {
               {isPublished && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                   <GlobeAltIcon className="h-3 w-3" />
-                  Published
+                  {t('published')}
                 </span>
               )}
             </h2>
 
             <p className="text-xs text-muted mt-0.5">
-              {employees.length} employees · {shifts.length} shift slots
+              {t('employeesShiftSlots', employees.length, shifts.length)}
               {dateRangeLabel && ` · ${dateRangeLabel}`}
               {solved && scoreInfo && (() => {
                 const hasHard = scoreInfo.includes('-') && !scoreInfo.startsWith('0hard')
                 return (
                   <span className={`ml-2 font-medium ${hasHard ? 'text-red-600' : 'text-teal-600'}`}>
-                    · Score: {scoreInfo}
+                    · {t('scoreLabel')} {scoreInfo}
                     {hasHard && ` ⚠ ${t('hardViolations')}`}
                   </span>
                 )
               })()}
               {hasUnsavedEdits && (
-                <span className="ml-2 text-amber-600 font-medium">· Unsaved changes</span>
+                <span className="ml-2 text-amber-600 font-medium">· {t('unsavedChanges')}</span>
               )}
             </p>
 
@@ -515,7 +514,7 @@ export default function ScheduleEditor() {
             {user?.plan === 'free' && usage && (
               <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-700">
                 <SolveDotsCounter used={usage.solves_used} limit={usage.solves_limit} />
-                {usage.solves_used}/{usage.solves_limit} auto-schedules used this month
+                {t('autoSchedulesUsed', usage.solves_used, usage.solves_limit)}
               </div>
             )}
           </div>
@@ -525,13 +524,13 @@ export default function ScheduleEditor() {
             {hardViolationCount > 0 && (
               <span className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
                 <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-                {hardViolationCount} violation{hardViolationCount !== 1 ? 's' : ''}
+                {t('violationsShort', hardViolationCount)}
               </span>
             )}
             {softViolationCount > 0 && (
               <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
                 <ExclamationTriangleIcon className="h-3.5 w-3.5" />
-                {softViolationCount} warning{softViolationCount !== 1 ? 's' : ''}
+                {t('warningsLabel', softViolationCount)}
               </span>
             )}
 
@@ -541,13 +540,13 @@ export default function ScheduleEditor() {
                 : softViolationCount > 0
                   ? <ExclamationTriangleIcon className="h-4 w-4 text-amber-500" />
                   : <ShieldCheckIcon className="h-4 w-4" />}
-              {validating ? 'Checking…' : 'Validate'}
+              {validating ? t('checking') : t('validate')}
             </Button>
 
             {hasUnsavedEdits && (
               <Button variant="secondary" size="sm" onClick={() => persistEdits(false)} loading={saving}>
                 <CheckCircleIcon className="h-4 w-4" />
-                Save edits
+                {t('saveEdits')}
               </Button>
             )}
 
@@ -572,14 +571,14 @@ export default function ScheduleEditor() {
                 disabled={publishing}
               >
                 <GlobeAltIcon className="h-4 w-4" />
-                {isPublished ? 'Unpublish' : 'Publish schedule'}
+                {isPublished ? t('unpublish') : t('publishSchedule')}
               </Button>
             )}
           </div>
         </div>
 
         {/* Solving banner — shown above the Gantt while optimising */}
-        {solving && <SolvingBanner />}
+        {solving && <SolvingBanner t={t} />}
 
         {/* Violations panel — shown after Validate */}
         {!solving && violationCount > 0 && (
@@ -587,6 +586,7 @@ export default function ScheduleEditor() {
             violations={violations}
             shifts={shifts}
             onDismiss={() => setViolations({})}
+            t={t}
           />
         )}
 
@@ -608,7 +608,7 @@ export default function ScheduleEditor() {
           />
         ) : (
           <div className="flex items-center justify-center py-20 text-muted text-sm">
-            No schedule data available.
+            {t('noScheduleData')}
           </div>
         )}
       </div>

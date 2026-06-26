@@ -3,8 +3,7 @@ import Modal from '../common/Modal'
 import Button from '../common/Button'
 import Select from '../common/Select'
 import { format, parseISO } from 'date-fns'
-
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+import { useTranslations } from '../../i18n'
 
 // iso day-of-week index 0=Mon … 6=Sun — uses local date constructor to avoid UTC shift
 function isoDow(isoDate) {
@@ -34,6 +33,8 @@ export default function ShiftCreateModal({
   onCreate,
   onClose,
 }) {
+  const { t } = useTranslations()
+  const DAYS_OF_WEEK = t('daysShort')
   const [startTime,     setStartTime]     = useState(initialStartTime ?? '09:00')
   const [endTime,       setEndTime]       = useState(initialEndTime   ?? '17:00')
   const [selectedSkills, setSelectedSkills] = useState([])
@@ -107,9 +108,9 @@ export default function ShiftCreateModal({
   }
 
   const handleCreate = () => {
-    if (!startTime || !endTime) { setError('Start and end times are required.'); return }
-    if (startTime === endTime)  { setError('Start and end time must differ.'); return }
-    if (repeat && repeatDays.length === 0) { setError('Select at least one day to repeat on.'); return }
+    if (!startTime || !endTime) { setError(t('startEndRequired')); return }
+    if (startTime === endTime)  { setError(t('startEndDiffer')); return }
+    if (repeat && repeatDays.length === 0) { setError(t('selectAtLeastOneDay')); return }
     setError('')
 
     const allExisting = existingShifts ?? []
@@ -135,7 +136,7 @@ export default function ShiftCreateModal({
   }
 
   return (
-    <Modal open title="Add New Shift" onClose={onClose} size="sm">
+    <Modal open title={t('addNewShift')} onClose={onClose} size="sm">
       {/* Date */}
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-2.5 text-sm text-dark font-medium">
         {formattedDate}
@@ -144,7 +145,7 @@ export default function ShiftCreateModal({
       {/* Time range */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">Start time</label>
+          <label className="block mb-1 text-xs font-semibold text-dark">{t('startTime')}</label>
           <input
             type="time"
             value={startTime}
@@ -153,7 +154,7 @@ export default function ShiftCreateModal({
           />
         </div>
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">End time</label>
+          <label className="block mb-1 text-xs font-semibold text-dark">{t('endTime')}</label>
           <input
             type="time"
             value={endTime}
@@ -166,7 +167,7 @@ export default function ShiftCreateModal({
       {/* Required skills */}
       {allSkills.length > 0 && (
         <div className="mb-4">
-          <label className="block mb-1.5 text-xs font-semibold text-dark">Required skills (optional)</label>
+          <label className="block mb-1.5 text-xs font-semibold text-dark">{t('requiredSkillsOptional')}</label>
           <div className="flex flex-wrap gap-1.5">
             {allSkills.map((skill) => (
               <button
@@ -189,10 +190,10 @@ export default function ShiftCreateModal({
       {/* Employee assignment (optional) */}
       <div className="mb-4">
         <Select
-          label="Assign employee (optional)"
+          label={t('assignEmployeeOptional')}
           value={selectedEmpId}
           onChange={setSelectedEmpId}
-          placeholder="— Leave unassigned —"
+          placeholder={t('leaveUnassigned')}
           options={employees.map((emp) => ({
             value: emp.id,
             label: emp.name + (emp.skills?.length ? ` (${emp.skills.join(', ')})` : ''),
@@ -210,13 +211,13 @@ export default function ShiftCreateModal({
             onChange={(e) => setRepeat(e.target.checked)}
           />
           <span className="text-xs font-semibold text-dark">
-            Repeat across schedule
+            {t('repeatAcrossSchedule')}
           </span>
         </label>
 
         {repeat && (
           <div>
-            <label className="block text-xs text-muted mb-1.5">Repeat on days</label>
+            <label className="block text-xs text-muted mb-1.5">{t('repeatOnDays')}</label>
             <div className="flex gap-1">
               {DAYS_OF_WEEK.map((label, dow) => (
                 <button
@@ -235,8 +236,7 @@ export default function ShiftCreateModal({
               ))}
             </div>
             <p className="text-xs text-muted mt-1.5">
-              Creates one shift per matching day
-              {dateFrom && dateTo ? ` from ${dateFrom} to ${dateTo}` : ' across the schedule'}.
+              {t('repeatNote', dateFrom && dateTo ? t('repeatRangeFromTo', dateFrom, dateTo) : t('repeatRangeAcross'))}
             </p>
           </div>
         )}
@@ -245,16 +245,16 @@ export default function ShiftCreateModal({
       {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
 
       {(() => {
-        let addLabel = 'Add shift'
+        let addLabel = t('addShift')
         if (repeat && repeatDays.length > 0) {
           const rf = dateFrom ?? date
           const rt = dateTo   ?? addDays(date, 6)
           const n  = expandRepeatDates(rf, rt).length
-          addLabel = `Add ${n} shift${n !== 1 ? 's' : ''}`
+          addLabel = t('addShiftN', n)
         }
         return (
           <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={onClose}>{t('cancel')}</Button>
             <Button size="sm" onClick={handleCreate}>{addLabel}</Button>
           </div>
         )
