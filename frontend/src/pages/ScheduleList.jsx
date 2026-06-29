@@ -221,12 +221,14 @@ export default function ScheduleList() {
           <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
             {t('activeScheduleThisWeek')}
           </h3>
-          <ScheduleCard
-            run={active}
-            onDelete={handleDelete}
-            onExport={handleExport}
-            onRename={handleRename}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <ScheduleCard
+              run={active}
+              onDelete={handleDelete}
+              onExport={handleExport}
+              onRename={handleRename}
+            />
+          </div>
         </div>
       )}
 
