@@ -150,7 +150,7 @@ export default function Employees() {
     try {
       const payload = {
         name: form.name.trim(),
-        phone: form.phone.trim(),
+        phone: form.phone.trim() || null,
         nif: form.nif.trim() || null,
         skills: form.skills.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
         min_hours_week: Number(form.min_hours_week) || 0,
@@ -269,7 +269,7 @@ export default function Employees() {
                           </button>
                         </td>
                         <td className="px-4 py-3 font-medium text-dark">{emp.name}</td>
-                        <td className="px-4 py-3 text-muted font-roboto text-xs">{emp.phone}</td>
+                        <td className="px-4 py-3 text-muted font-roboto text-xs">{emp.phone || '—'}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
                             {emp.skills.length === 0
@@ -354,13 +354,15 @@ export default function Employees() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-          <Input
-            label={t('phoneLabel')}
-            required
-            placeholder="+353871234567"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          />
+          <div>
+            <Input
+              label={t('phoneLabel')}
+              placeholder="+353871234567"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+            <p className="text-xs text-muted mt-1">{t('phoneHint')}</p>
+          </div>
           <Input
             label={t('nifLabel')}
             placeholder={t('nifPlaceholder')}
@@ -448,7 +450,7 @@ export default function Employees() {
           </label>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={() => setModalOpen(false)}>{t('cancel')}</Button>
-            <Button onClick={handleSave} loading={saving} disabled={!form.name || !form.phone}>
+            <Button onClick={handleSave} loading={saving} disabled={!form.name}>
               {editingId ? t('saveChanges') : t('addEmployee')}
             </Button>
           </div>

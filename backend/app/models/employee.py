@@ -19,7 +19,9 @@ class Employee(Base):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     # E.164 format, globally unique — used by WhatsApp bot to identify employee.
-    phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    # Optional: only needed for the WhatsApp clock in/out bot. Postgres allows
+    # multiple NULLs under a unique constraint, so uniqueness still holds for set numbers.
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True, index=True)
     skills: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     min_hours_week: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     cost_per_hour: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, server_default="0")

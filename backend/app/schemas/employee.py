@@ -58,7 +58,8 @@ def _normalise_skills(v: list[str]) -> list[str]:
 
 class EmployeeIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    phone: str
+    # Optional: only required for the WhatsApp clock in/out bot.
+    phone: str | None = None
     nif: str | None = Field(default=None, max_length=20)
     skills: list[str] = []
     min_hours_week: int = Field(default=0, ge=0, le=168)
@@ -67,7 +68,9 @@ class EmployeeIn(BaseModel):
 
     @field_validator("phone")
     @classmethod
-    def _phone(cls, v: str) -> str:
+    def _phone(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            return None
         return _validate_phone(v)
 
     @field_validator("skills")
@@ -88,7 +91,9 @@ class EmployeeUpdate(BaseModel):
     @field_validator("phone")
     @classmethod
     def _phone(cls, v: str | None) -> str | None:
-        return _validate_phone(v) if v is not None else None
+        if v is None or not v.strip():
+            return None
+        return _validate_phone(v)
 
     @field_validator("skills")
     @classmethod
@@ -99,7 +104,7 @@ class EmployeeUpdate(BaseModel):
 class EmployeeOut(BaseModel):
     id: str
     name: str
-    phone: str
+    phone: str | None
     nif: str | None
     skills: list[str]
     min_hours_week: int

@@ -64,6 +64,9 @@ async def check_missed_clockins() -> None:
         employees = emp_result.scalars().all()
 
         for employee in employees:
+            # No phone → not on the WhatsApp bot, nothing to remind.
+            if not employee.phone:
+                continue
             user = await db.get(User, employee.user_id)
             tz_name = _employee_tz(user)
 
@@ -218,7 +221,9 @@ async def check_missed_clockouts() -> None:
                     )
                     db.add(audit)
 
-                    _send_text(employee.phone, _t(lang, "auto_clockout", time=time_str))
+                    # Only notify employees who are on the WhatsApp bot.
+                    if employee.phone:
+                        _send_text(employee.phone, _t(lang, "auto_clockout", time=time_str))
 
                     await db.commit()
 
