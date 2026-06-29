@@ -58,8 +58,11 @@ function ShiftTooltip({ tip }) {
       className="bg-dark text-white text-xs rounded-xl shadow-card px-3 py-2.5 space-y-1.5"
       style={style}
     >
-      {/* Time + date */}
+      {/* Name (optional) + time + date */}
       <div>
+        {a.name?.trim() && (
+          <p className="font-semibold text-sm leading-tight">{a.name.trim()}</p>
+        )}
         <p className="font-roboto font-semibold text-sm leading-tight">
           {a.start_time} – {a.end_time}
         </p>
@@ -129,6 +132,11 @@ const EMP_W   = 164
 const H_START  = 0
 const H_END    = 23
 const TOTAL_M  = (H_END - H_START) * 60
+
+// Title shown on a shift bar/cell — the user-given name when present, else the time range
+function shiftTitle(a) {
+  return a.name?.trim() ? a.name.trim() : `${a.start_time}–${a.end_time}`
+}
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 function toMins(t) {
@@ -233,8 +241,8 @@ function ShiftBar({ a, editable, violations, onClickEdit, onDragStart, onDragEnd
       {hasViolation && (
         <ExclamationTriangleIcon className="h-3 w-3 flex-shrink-0 text-red-500" />
       )}
-      <span className="text-[11px] font-medium truncate leading-tight">
-        {a.start_time}–{a.end_time}
+      <span className="text-[11px] font-medium truncate leading-tight" title={`${a.start_time}–${a.end_time}`}>
+        {shiftTitle(a)}
       </span>
     </div>
   )
@@ -431,7 +439,7 @@ function EmployeeView({
                         title={`${a.start_time}–${a.end_time}`}
                       >
                         {hasViolation && <ExclamationTriangleIcon className="inline h-3 w-3 text-red-500 mr-0.5 -mt-0.5" />}
-                        {a.start_time}–{a.end_time}
+                        {shiftTitle(a)}
                         {a.required_skills?.length > 0 && (
                           <span className="ml-1 opacity-70">· {a.required_skills.join(', ')}</span>
                         )}
@@ -584,13 +592,24 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                       hasViolation ? 'bg-red-50/60' : !assigned ? 'bg-amber-50/40' : 'hover:bg-gray-50/60'
                     }`}
                   >
-                    <div className="w-28 flex-shrink-0 flex items-center gap-1.5">
+                    <div className="w-36 flex-shrink-0 flex items-center gap-1.5">
                       {hasViolation && (
                         <ExclamationTriangleIcon className="h-3.5 w-3.5 text-red-500 flex-shrink-0" title={shiftViolations.map(v => v.message).join('\n')} />
                       )}
-                      <span className="font-roboto text-xs font-semibold text-dark">
-                        {a.start_time} – {a.end_time}
-                      </span>
+                      {a.name?.trim() ? (
+                        <span className="min-w-0">
+                          <span className="block text-xs font-semibold text-dark truncate" title={a.name.trim()}>
+                            {a.name.trim()}
+                          </span>
+                          <span className="block font-roboto text-[10px] text-muted">
+                            {a.start_time} – {a.end_time}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="font-roboto text-xs font-semibold text-dark">
+                          {a.start_time} – {a.end_time}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -776,18 +795,22 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
   const { t } = useTranslations()
   // Build the set of distinct shift types across the whole schedule (not just visible)
   // A "type" is keyed by start_time + end_time + sorted skills
+  // A "type" is keyed by name + start_time + end_time + sorted skills, so two
+  // shifts at the same time with different names appear as separate rows.
   const shiftTypes = useMemo(() => {
-    const seen = new Map() // key → {start_time, end_time, required_skills, label}
+    const seen = new Map() // key → {name, start_time, end_time, required_skills, label}
     for (const s of shifts) {
       const skills = [...(s.required_skills ?? [])].sort()
-      const key = `${s.start_time}|${s.end_time}|${skills.join(',')}`
+      const name = s.name?.trim() || ''
+      const key = `${name}|${s.start_time}|${s.end_time}|${skills.join(',')}`
       if (!seen.has(key)) {
         seen.set(key, {
           key,
+          name,
           start_time: s.start_time,
           end_time:   s.end_time,
           required_skills: skills,
-          label: `${s.start_time} – ${s.end_time}`,
+          label: name || `${s.start_time} – ${s.end_time}`,
         })
       }
     }
@@ -802,7 +825,8 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
     for (const st of shiftTypes) m[st.key] = {}
     for (const a of assignments) {
       const skills = [...(a.required_skills ?? [])].sort()
-      const key = `${a.start_time}|${a.end_time}|${skills.join(',')}`
+      const name = a.name?.trim() || ''
+      const key = `${name}|${a.start_time}|${a.end_time}|${skills.join(',')}`
       if (!m[key]) continue
       if (!m[key][a.date]) m[key][a.date] = []
       m[key][a.date].push(a)
@@ -887,7 +911,10 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
               onClick={editable ? () => onClickEditShiftType(type) : undefined}
               title={editable ? t('clickToEditAll') : undefined}
             >
-              <p className="text-xs font-roboto font-semibold text-dark">{type.label}</p>
+              <p className="text-xs font-roboto font-semibold text-dark truncate" title={type.label}>{type.label}</p>
+              {type.name && (
+                <p className="text-[10px] font-roboto text-muted">{type.start_time} – {type.end_time}</p>
+              )}
               {type.required_skills.length > 0 ? (
                 <SkillChips skills={type.required_skills} />
               ) : (
@@ -1083,27 +1110,26 @@ export default function ScheduleGantt({
     return [...s].sort()
   }, [employeesArr])
 
+  // Coverage type key — must match the key used inside CoverageView (includes name)
+  const shiftTypeKey = (x) => {
+    const skills = [...(x.required_skills ?? [])].sort()
+    const name = x.name?.trim() || ''
+    return `${name}|${x.start_time}|${x.end_time}|${skills.join(',')}`
+  }
+
   // Coverage — click row label: collect all assignments matching this shift type
   const handleClickEditShiftType = (type) => {
-    const skills = [...(type.required_skills ?? [])].sort()
-    const typeKey = `${type.start_time}|${type.end_time}|${skills.join(',')}`
-    const allShiftsOfType = assignmentsArr.filter((a) => {
-      const aSkills = [...(a.required_skills ?? [])].sort()
-      return `${a.start_time}|${a.end_time}|${aSkills.join(',')}` === typeKey
-    })
+    const typeKey = shiftTypeKey(type)
+    const allShiftsOfType = assignmentsArr.filter((a) => shiftTypeKey(a) === typeKey)
     setEditingShiftType({ type, allShiftsOfType })
   }
 
   // Coverage — copy row: for each date that already has ≥1 shift of this type, add one more
   const handleCopyShiftType = (type) => {
-    const skills = [...(type.required_skills ?? [])].sort()
-    const typeKey = `${type.start_time}|${type.end_time}|${skills.join(',')}`
+    const typeKey = shiftTypeKey(type)
     const datesWithType = [...new Set(
       assignmentsArr
-        .filter((a) => {
-          const aSkills = [...(a.required_skills ?? [])].sort()
-          return `${a.start_time}|${a.end_time}|${aSkills.join(',')}` === typeKey
-        })
+        .filter((a) => shiftTypeKey(a) === typeKey)
         .map((a) => a.date)
     )]
     const running = [...shiftsArr]
@@ -1113,6 +1139,7 @@ export default function ScheduleGantt({
       const shift = {
         id: `${baseId}_slot${count}`,
         date,
+        name: type.name || null,
         start_time: type.start_time,
         end_time:   type.end_time,
         required_skills: type.required_skills,

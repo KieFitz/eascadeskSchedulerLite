@@ -223,6 +223,7 @@ export default function ScheduleEditor() {
         (r.shifts_data ?? []).map((s) => ({
           shift_id:        s.id,
           date:            s.date,
+          name:            s.name ?? null,
           start_time:      s.start_time,
           end_time:        s.end_time,
           required_skills: s.required_skills,
@@ -344,6 +345,7 @@ export default function ScheduleEditor() {
       {
         shift_id:        shiftData.id,
         date:            shiftData.date,
+        name:            shiftData.name ?? null,
         start_time:      shiftData.start_time,
         end_time:        shiftData.end_time,
         required_skills: shiftData.required_skills,

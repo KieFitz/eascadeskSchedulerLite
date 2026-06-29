@@ -164,9 +164,10 @@ def create_template():
     # ══════════════════════════════════════════════════════════════════════════
     ws_shifts = wb.create_sheet("Shifts")
 
-    shift_headers = ["Date", "Start Time", "End Time", "Required Skills", "Min Staff"]
+    shift_headers = ["Date", "Shift Name", "Start Time", "End Time", "Required Skills", "Min Staff"]
     shift_hints = [
         "YYYY-MM-DD format",
+        "Optional label, e.g. Morning Shift (shown on the chart instead of the times)",
         "HH:MM (24-hour)",
         "HH:MM (24-hour)",
         "Comma-separated skills required (leave blank for any employee)",
@@ -181,9 +182,9 @@ def create_template():
     for i in range(7):
         d = (today + timedelta(days=i)).strftime("%Y-%m-%d")
         rows = [
-            [d, "08:00", "16:00", "cashier, first_aid", 1],
-            [d, "08:00", "16:00", "cashier",             1],
-            [d, "14:00", "22:00", "cashier",             1],
+            [d, "Morning Shift", "08:00", "16:00", "cashier, first_aid", 1],
+            [d, "Morning Shift", "08:00", "16:00", "cashier",             1],
+            [d, "Evening Shift", "14:00", "22:00", "cashier",             1],
         ]
         for row in rows:
             ws_shifts.append(row)
@@ -197,7 +198,7 @@ def create_template():
         for cell in row:
             cell.alignment = Alignment(horizontal="center")
 
-    sh_col_widths = [16, 14, 14, 38, 12]
+    sh_col_widths = [16, 20, 14, 14, 38, 12]
     for i, w in enumerate(sh_col_widths, 1):
         ws_shifts.column_dimensions[get_column_letter(i)].width = w
 

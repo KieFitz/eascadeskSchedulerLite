@@ -40,6 +40,7 @@ _COLUMN_ALIASES: dict[str, str] = {
     "hora fin":            "End Time",
     # Shifts sheet
     "fecha":               "Date",
+    "nombre del turno":    "Shift Name",
     "habilidades requeridas": "Required Skills",
     "personal mín":        "Min Staff",
     "personal min":        "Min Staff",
@@ -462,6 +463,10 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
             required_skills_raw = str(row[idx["Required Skills"]] or "")
         required_skills = [_normalise_skill(s) for s in required_skills_raw.split(",") if s.strip()]
 
+        shift_name = ""
+        if "Shift Name" in idx:
+            shift_name = str(row[idx["Shift Name"]] or "").strip()
+
         start_str = _to_time_str(raw_start)
         end_str = _to_time_str(raw_end)
         base_id = f"{shift_date}_{start_str}"
@@ -473,6 +478,7 @@ def _parse_shifts(ws, plan: str) -> list[dict]:
             shifts.append({
                 "id": f"{base_id}_slot{global_slot}",
                 "date": str(shift_date),
+                "name": shift_name or None,
                 "start_time": start_str,
                 "end_time": end_str,
                 "required_skills": required_skills,

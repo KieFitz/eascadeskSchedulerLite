@@ -77,6 +77,7 @@ _STRINGS = {
         "s2_hours_fmt": "{h:.1f} hrs",
         # Sheet 3 column headers
         "s3_date": "Date",
+        "s3_name": "Shift",
         "s3_start": "Start Time",
         "s3_end": "End Time",
         "s3_skills": "Required Skills",
@@ -122,6 +123,7 @@ _STRINGS = {
         "s2_hours_fmt": "{h:.1f} h",
         # Sheet 3
         "s3_date": "Fecha",
+        "s3_name": "Turno",
         "s3_start": "Hora Inicio",
         "s3_end": "Hora Fin",
         "s3_skills": "Habilidades Requeridas",
@@ -402,6 +404,7 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict], l
 
     headers = [
         _s(lang, "s3_date"),
+        _s(lang, "s3_name"),
         _s(lang, "s3_start"),
         _s(lang, "s3_end"),
         _s(lang, "s3_skills"),
@@ -430,6 +433,7 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict], l
 
         row = [
             a.get("date", ""),
+            a.get("name") or "",
             a.get("start_time", ""),
             a.get("end_time", ""),
             skills_str,
@@ -466,10 +470,10 @@ def _build_all_assignments(wb, employees: list[dict], assignments: list[dict], l
         dv.prompt      = _s(lang, "s3_dv_prompt")
         dv.promptTitle = _s(lang, "s3_dv_prompt_title")
         last_row = 1 + len(sorted_assignments)
-        dv.add(f"F2:F{last_row}")
+        dv.add(f"G2:G{last_row}")
         ws.add_data_validation(dv)
 
-    widths = [14, 13, 13, 30, 8, 24, 12, 12]
+    widths = [14, 20, 13, 13, 30, 8, 24, 12, 12]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 

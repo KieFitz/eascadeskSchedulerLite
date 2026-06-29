@@ -268,6 +268,7 @@ def _build_problem(
             end_time=_hhmm_to_mins(s["end_time"]),
             required_skills=s.get("required_skills", []),
             slot_index=s["slot_index"],
+            name=s.get("name") or "",
             iso_week=meta["iso_week"],
             duration_mins=meta["duration_mins"],
         )
@@ -289,6 +290,7 @@ def _solution_to_dict(solution: ScheduleSolution, emp_cost_map: dict[str, float]
         result_assignments.append({
             "shift_id":        a.shift.id if a.shift else None,
             "date":            str(a.shift.date) if a.shift else None,
+            "name":            (a.shift.name or None) if a.shift else None,
             "start_time":      _mins_to_hhmm(a.shift.start_time) if a.shift else None,
             "end_time":        _mins_to_hhmm(a.shift.end_time) if a.shift else None,
             "required_skills": a.shift.required_skills if a.shift else [],

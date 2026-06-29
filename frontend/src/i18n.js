@@ -411,6 +411,8 @@ export const translations = {
 
     // ── Shift create modal ───────────────────────────────────────────
     addNewShift: 'Add New Shift',
+    shiftNameOptional: 'Shift name (optional)',
+    shiftNamePlaceholder: 'e.g. Morning Shift, Front of House',
     requiredSkillsOptional: 'Required skills (optional)',
     assignEmployeeOptional: 'Assign employee (optional)',
     leaveUnassigned: '— Leave unassigned —',
@@ -1042,6 +1044,8 @@ export const translations = {
 
     // \u2500\u2500 Shift create modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     addNewShift: 'A\u00f1adir Nuevo Turno',
+    shiftNameOptional: 'Nombre del turno (opcional)',
+    shiftNamePlaceholder: 'p. ej. Turno de Ma\u00f1ana, Recepci\u00f3n',
     requiredSkillsOptional: 'Habilidades requeridas (opcional)',
     assignEmployeeOptional: 'Asignar empleado (opcional)',
     leaveUnassigned: '\u2014 Dejar sin asignar \u2014',

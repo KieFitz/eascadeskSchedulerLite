@@ -69,6 +69,7 @@ class Shift:
     end_time: int      # minutes since midnight, e.g. 960 = 16:00
     required_skills: list[str]
     slot_index: int
+    name: str          # optional human label, e.g. "Morning Shift" ("" if unset)
     # Pre-computed in scheduler.py — used by group_by constraints without any
     # arithmetic in the JVM (flat attribute access only).
     iso_week: str      # ISO year+week, e.g. "2026W15" — group key for weekly checks

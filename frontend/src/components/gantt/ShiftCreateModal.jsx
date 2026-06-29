@@ -35,6 +35,7 @@ export default function ShiftCreateModal({
 }) {
   const { t } = useTranslations()
   const DAYS_OF_WEEK = t('daysShort')
+  const [name,          setName]          = useState('')
   const [startTime,     setStartTime]     = useState(initialStartTime ?? '09:00')
   const [endTime,       setEndTime]       = useState(initialEndTime   ?? '17:00')
   const [selectedSkills, setSelectedSkills] = useState([])
@@ -100,6 +101,7 @@ export default function ShiftCreateModal({
     return {
       id: `${baseId}_slot${count}`,
       date: isoDate,
+      name: name.trim() || null,
       start_time: startTime,
       end_time: endTime,
       required_skills: selectedSkills,
@@ -140,6 +142,18 @@ export default function ShiftCreateModal({
       {/* Date */}
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-2.5 text-sm text-dark font-medium">
         {formattedDate}
+      </div>
+
+      {/* Shift name */}
+      <div className="mb-4">
+        <label className="block mb-1 text-xs font-semibold text-dark">{t('shiftNameOptional')}</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('shiftNamePlaceholder')}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
+        />
       </div>
 
       {/* Time range */}

@@ -85,8 +85,8 @@ export default function ShiftEditModal({
       {/* Shift info */}
       <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-sm">
         <div className="flex items-center justify-between">
-          <span className="font-roboto font-semibold text-dark">
-            {assignment.start_time} – {assignment.end_time}
+          <span className="font-semibold text-dark">
+            {assignment.name?.trim() || `${assignment.start_time} – ${assignment.end_time}`}
           </span>
           {assignment.source === 'SOLVER' ? (
             <span className="text-[10px] font-semibold bg-brand-teal/15 text-teal-700 px-2 py-0.5 rounded-full">{t('autoScheduled')}</span>
@@ -94,6 +94,9 @@ export default function ShiftEditModal({
             <span className="text-[10px] font-semibold bg-brand-lavender-light text-brand-purple px-2 py-0.5 rounded-full">{t('manual')}</span>
           ) : null}
         </div>
+        {assignment.name?.trim() && (
+          <p className="font-roboto text-dark text-xs">{assignment.start_time} – {assignment.end_time}</p>
+        )}
         <p className="text-muted text-xs">{formattedDate}</p>
         {assignment.required_skills?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
