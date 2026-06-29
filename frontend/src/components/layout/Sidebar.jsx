@@ -30,15 +30,15 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-60 bg-dark flex flex-col z-40">
+    <aside className="fixed inset-y-0 left-0 w-50 bg-dark flex flex-col z-40">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded flex items-center justify-center">
+          <div className="h-12 w-12 rounded flex items-center justify-center">
             <img
               src={logo}
               alt="Eascadesk"
-              className="h-9 w-9 rounded-lg object-contain bg-white/5 p-1"
+              className="h-12 w-12 rounded-lg object-contain bg-white/5 p-1"
             />
           </div>
           <div>
@@ -49,7 +49,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-2 py-4 space-y-0.5">
         {navItems.map(({ to, label, Icon }) => (
           <NavLink
             key={to}

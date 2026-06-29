@@ -18,6 +18,9 @@ export default {
       fontFamily: {
         sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
+      spacing: {
+        50: '12rem', // compact sidebar width (192px) — keep w-50 and ml-50 in sync
+      },
       borderRadius: {
         xl: '18px',
       },
