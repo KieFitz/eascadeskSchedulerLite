@@ -122,8 +122,10 @@ function ShiftTooltip({ tip }) {
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 const ROW_H   = 92
-const BAR_H   = 56
-const BAR_Y   = (ROW_H - BAR_H) / 2
+const OPEN_ROW_H = 56                     // open-shifts row is shorter than employee rows
+const BAR_H   = 74
+const BAR_GAP = 3                        // small gap between bar and bottom of row
+const BAR_Y   = ROW_H - BAR_H - BAR_GAP  // push bars to nearly touch the bottom
 const EMP_W   = 164
 
 // DAYS_IN_VIEW is now dynamic — see daysInView state in ScheduleGantt
@@ -183,8 +185,8 @@ function SpanBar({ span, kind }) {
                              'bg-rose-200/70 border border-rose-300'
   return (
     <div
-      className={`absolute rounded ${cls}`}
-      style={{ left: `${leftPct(start)}%`, width: `${widthPct(start, end)}%`, height: BAR_H, top: BAR_Y, zIndex: 0 }}
+      className={`absolute ${cls}`}
+      style={{ left: `${leftPct(start)}%`, width: `${widthPct(start, end)}%`, top: 0, bottom: 0, zIndex: 0 }}
       title={`${kind}: ${start}–${end}`}
     />
   )
@@ -200,7 +202,7 @@ function HourLabels({ stepHours = 6 }) {
         const h = H_START + i * STEP_H
         const pct = ((h - H_START) / (H_END - H_START)) * 100
         return (
-          <div key={h} className="absolute top-0 bottom-0 flex flex-col" style={{ left: `${pct}%` }}>
+          <div key={h} className="absolute top-0 bottom-0 flex flex-col" style={{ left: `${pct}%`, zIndex: 2 }}>
             <span className="text-[9px] text-muted leading-none whitespace-nowrap pl-0.5">
               {String(h).padStart(2, '0')}:00
             </span>
@@ -421,13 +423,13 @@ function EmployeeView({
         {/* Open shifts row — always visible when editable, at the top */}
         {(editable || hasUnassigned) && (
           <div
-            className={`grid border-b-2 ${editable && dragOverTarget === 'unassigned' ? 'bg-amber-100 border-amber-400' : 'bg-amber-50 border-amber-200'}`}
+            className={`grid border-b-2 ${editable && dragOverTarget === 'unassigned' ? 'bg-gray-100 border-amber-400' : 'bg-gray-50 border-amber-200'}`}
             style={gridStyle}
             onDragOver={editable ? (e) => { e.preventDefault(); setDragOverTarget('unassigned') } : undefined}
             onDragLeave={editable ? () => { if (dragOverTarget === 'unassigned') setDragOverTarget(null) } : undefined}
             onDrop={editable ? (e) => { e.preventDefault(); handleDrop(null) } : undefined}
           >
-            <div className="px-4 flex flex-col justify-center border-r border-amber-200" style={{ minHeight: ROW_H }}>
+            <div className="px-4 flex flex-col justify-center border-r border-amber-200" style={{ minHeight: OPEN_ROW_H }}>
               <p className="text-sm font-semibold text-amber-700">{t('openShifts')}</p>
               {editable && <p className="text-[10px] text-amber-600/70">{t('clickPlusToAdd')}</p>}
             </div>
@@ -437,7 +439,7 @@ function EmployeeView({
                 <div
                   key={d}
                   className="border-r border-amber-100 flex flex-col gap-1 p-1.5 relative group"
-                  style={{ minHeight: ROW_H }}
+                  style={{ minHeight: OPEN_ROW_H }}
                   onDoubleClick={editable ? () => onClickCreateShift(d) : undefined}
                 >
                   {slots.map((a) => {

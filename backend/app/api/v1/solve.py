@@ -109,6 +109,26 @@ async def _merge_db_availability(employees_data: list[dict], user_id: str, db: A
     return merged
 
 
+async def _persist_intermediate(run_id: str, result_data: dict) -> None:
+    """Write an in-progress best solution to the run, leaving status='processing'.
+
+    Uses its own short-lived session so it never collides with the main solve
+    session.  Best-effort: a transient failure here just means the client waits
+    for the next improvement (or the final result)."""
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(ScheduleRun).where(ScheduleRun.id == run_id))
+            run = result.scalar_one_or_none()
+            # Don't clobber a run that already finished or was reset
+            if run is None or run.status != "processing":
+                return
+            run.result_data = result_data
+            run.score_info = result_data.get("score", "")
+            await db.commit()
+    except Exception:
+        pass
+
+
 async def _background_solve(
     run_id: str,
     employees_data: list,
@@ -119,7 +139,27 @@ async def _background_solve(
     user_id: str | None = None,
     is_pro: bool = False,
 ) -> None:
-    """Run the solver in the background and persist the result to its own DB session."""
+    """Run the solver in the background and persist the result to its own DB session.
+
+    Each improved best solution found by the solver is also persisted (with
+    status left as 'processing') so the client can watch the schedule fill in
+    live while polling."""
+    loop = asyncio.get_event_loop()
+
+    # The solver invokes this on a JVM thread; marshal the DB write back onto the
+    # event loop.  Single-flight: skip if a write is still in progress so a fast
+    # burst of improvements can't pile up sessions.
+    pending: set[asyncio.Future] = set()
+
+    def _on_best_solution(result_data: dict) -> None:
+        if pending:
+            return
+        fut = asyncio.run_coroutine_threadsafe(
+            _persist_intermediate(run_id, result_data), loop
+        )
+        pending.add(fut)
+        fut.add_done_callback(lambda f: pending.discard(f))
+
     async with AsyncSessionLocal() as db:
         try:
             if is_pro and user_id:
@@ -132,6 +172,7 @@ async def _background_solve(
                 country=country,
                 timeout_seconds=timeout_seconds,
                 previous_assignments=previous_assignments,
+                on_best_solution=_on_best_solution,
             )
             result = await db.execute(select(ScheduleRun).where(ScheduleRun.id == run_id))
             run = result.scalar_one()

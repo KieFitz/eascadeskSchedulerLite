@@ -45,6 +45,7 @@ solver workers independently.
 import asyncio
 import threading
 from datetime import date
+from typing import Callable
 
 from timefold.solver import SolverManager
 from timefold.solver.config import (
@@ -313,12 +314,19 @@ async def solve_async(
     country: str | None = None,
     timeout_seconds: int | None = None,
     previous_assignments: list[dict] | None = None,
+    on_best_solution: Callable[[dict], None] | None = None,
 ) -> dict:
     """Submit a solve job to the SolverManager and return when it completes.
 
     Non-blocking: the job is queued by the manager.  If SOLVER_PARALLEL_COUNT=1
     (default) concurrent jobs are serialised automatically.  The event loop is
     freed while waiting via run_in_executor.
+
+    If ``on_best_solution`` is provided, it is called with a result dict (same
+    shape as the return value) every time the solver finds a new, improved best
+    solution — enabling the client to watch the schedule fill in live.  The
+    callback fires on a solver thread, so it must be thread-safe and quick
+    (offload any real work, e.g. a DB write, onto the event loop itself).
     """
     base = timeout_seconds if timeout_seconds and timeout_seconds > 0 else settings.SOLVER_TIMEOUT_SECONDS
     effective_timeout = min(base, MAX_SOLVER_SECONDS)
@@ -326,13 +334,26 @@ async def solve_async(
     manager = _get_solver_manager(country, effective_timeout)
     problem, emp_cost_map = _build_problem(employees_data, shifts_data, previous_assignments)
 
-    # Submits the job (non-blocking) — manager queues it according to parallel_solver_count
-    job = manager.solve(run_id, problem)
-
-    # Block the thread (not the event loop) until the job finishes
     loop = asyncio.get_event_loop()
-    solution = await loop.run_in_executor(None, job.get_final_best_solution)
 
+    if on_best_solution is None:
+        # Simple path — submit and await the final best solution.
+        job = manager.solve(run_id, problem)
+        solution = await loop.run_in_executor(None, job.get_final_best_solution)
+        return _solution_to_dict(solution, emp_cost_map)
+
+    # Streaming path — fire on_best_solution for each improved best solution.
+    # The consumer runs on a solver thread; we marshal the work back via the loop.
+    def _consumer(solution: ScheduleSolution) -> None:
+        try:
+            result = _solution_to_dict(solution, emp_cost_map)
+            on_best_solution(result)
+        except Exception:
+            # Never let a listener error kill the solver thread
+            pass
+
+    job = manager.solve_and_listen(run_id, problem, _consumer)
+    solution = await loop.run_in_executor(None, job.get_final_best_solution)
     return _solution_to_dict(solution, emp_cost_map)
 
 

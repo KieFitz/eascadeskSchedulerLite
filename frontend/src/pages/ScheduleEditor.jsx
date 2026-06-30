@@ -49,12 +49,17 @@ function SolveDotsCounter({ used, limit }) {
 }
 
 // ── Solving progress banner ───────────────────────────────────────────────────
-function SolvingBanner({ t }) {
+function SolvingBanner({ t, scoreInfo }) {
   return (
     <div className="relative border-b border-teal-200 bg-teal-50 px-4 py-2.5 flex items-center justify-between gap-4 overflow-hidden">
       <div className="flex items-center gap-2.5">
         <Spinner size="sm" className="text-teal-600" />
         <span className="text-sm font-medium text-teal-800">{t('optimisingSchedule')}</span>
+        {scoreInfo && (
+          <span className="text-xs font-mono font-medium text-teal-700 bg-teal-100 rounded px-1.5 py-0.5">
+            {t('liveScoreLabel')} {scoreInfo}
+          </span>
+        )}
       </div>
       <span className="text-xs text-teal-600 hidden sm:block">
         {t('navigateAwayHint')}
@@ -199,6 +204,12 @@ export default function ScheduleEditor() {
   )
   const violationCount = hardViolationCount + softViolationCount
 
+  // Coverage: how many shift slots ended up without an assigned employee
+  const unassignedCount = useMemo(
+    () => assignments.filter((a) => !a.employee_id).length,
+    [assignments]
+  )
+
   // ── Polling ───────────────────────────────────────────────────────────────
   const pollingRef = useRef(null)
 
@@ -239,24 +250,35 @@ export default function ScheduleEditor() {
     setSolving(r.status === 'processing')
   }, [])
 
+  // Apply an in-progress best solution while the solver is still running:
+  // refresh the live assignments/score but keep solving=true (no toast, keep polling).
+  const applyIntermediate = useCallback((r) => {
+    const stored = r.result_data?.assignments
+    if (stored?.length) setAssignments(stored)
+    if (r.score_info) setScoreInfo(r.score_info)
+  }, [])
+
   const startPolling = useCallback(() => {
     if (pollingRef.current) return
     pollingRef.current = setInterval(async () => {
       try {
         const r = await getSchedule(runId)
-        if (r.status !== 'processing') {
-          stopPolling()
-          applyRun(r)
-          refreshUsage()
-          if (r.status === 'completed') {
-            toast.success(t('scheduleOptimised'))
-          } else if (r.status === 'failed') {
-            toast.error(r.error_message ?? t('solveFailed'))
-          }
+        if (r.status === 'processing') {
+          // Solver is still running — show the latest partial result live.
+          applyIntermediate(r)
+          return
+        }
+        stopPolling()
+        applyRun(r)
+        refreshUsage()
+        if (r.status === 'completed') {
+          toast.success(t('scheduleOptimised'))
+        } else if (r.status === 'failed') {
+          toast.error(r.error_message ?? t('solveFailed'))
         }
       } catch { /* ignore transient errors */ }
     }, 2000)
-  }, [runId, applyRun])
+  }, [runId, applyRun, applyIntermediate])
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -485,7 +507,7 @@ export default function ScheduleEditor() {
               {t('mySchedulesLink')}
             </button>
 
-            <h2 className="font-semibold text-dark flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-dark flex items-center gap-2">
               {run?.name || dateRangeLabel || t('schedulePreview')}
               {isPublished && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
@@ -495,7 +517,7 @@ export default function ScheduleEditor() {
               )}
             </h2>
 
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               {t('employeesShiftSlots', employees.length, shifts.length)}
               {dateRangeLabel && ` · ${dateRangeLabel}`}
               {solved && scoreInfo && (() => {
@@ -507,6 +529,11 @@ export default function ScheduleEditor() {
                   </span>
                 )
               })()}
+              {solved && assignments.length > 0 && unassignedCount === 0 && (
+                <span className="ml-2 font-medium text-emerald-600 inline-flex items-center gap-0.5">
+                  · <CheckCircleIcon className="h-4 w-4" />{t('allShiftsAssigned')}
+                </span>
+              )}
               {hasUnsavedEdits && (
                 <span className="ml-2 text-amber-600 font-medium">· {t('unsavedChanges')}</span>
               )}
@@ -580,7 +607,7 @@ export default function ScheduleEditor() {
         </div>
 
         {/* Solving banner — shown above the Gantt while optimising */}
-        {solving && <SolvingBanner t={t} />}
+        {solving && <SolvingBanner t={t} scoreInfo={scoreInfo} />}
 
         {/* Violations panel — shown after Validate */}
         {!solving && violationCount > 0 && (

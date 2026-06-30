@@ -23,9 +23,9 @@ function StatusBadge({ status, isPublished }) {
     )
   }
   const map = {
-    pending:    { label: t('statusDraft'),   cls: 'bg-gray-100 text-gray-600' },
+    pending:    { label: t('statusDraft'),   cls: 'bg-amber-100 text-gray-600' },
     processing: { label: t('statusSolving'), cls: 'bg-amber-100 text-amber-700 animate-pulse' },
-    completed:  { label: t('statusSolved'),  cls: 'bg-brand-lavender-light text-brand-purple' },
+    completed:  { label: t('statusDraft'),   cls: 'bg-amber-100 text-gray-600' },
     failed:     { label: t('statusFailed'),  cls: 'bg-red-100 text-red-600' },
   }
   const { label, cls } = map[status] ?? map.pending
