@@ -445,12 +445,15 @@ function EmployeeView({
                     return (
                       <button
                         key={a.shift_id}
+                        draggable={editable}
+                        onDragStart={editable ? (e) => handleDragStart(e, a.shift_id) : undefined}
+                        onDragEnd={editable ? handleDragEnd : undefined}
                         onClick={editable ? (e) => { e.stopPropagation(); onClickEditShift(a) } : undefined}
                         className={[
                           'w-full text-left px-2 py-1 rounded text-[11px] font-medium truncate transition-colors',
                           hasViolation ? 'ring-1 ring-red-400 ring-inset' : '',
                           'bg-amber-100 text-amber-800 hover:bg-amber-200',
-                          editable ? 'cursor-pointer' : 'cursor-default',
+                          editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default',
                         ].join(' ')}
                         onMouseEnter={(e) => onTipShow(e, a)}
                         onMouseLeave={onTipHide}
@@ -809,7 +812,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
 // ════════════════════════════════════════════════════════════════════════════
 // Coverage view — grid: rows = shift types, columns = dates
 // ════════════════════════════════════════════════════════════════════════════
-function CoverageView({ employees, shifts, assignments, visibleDates, editable, violations, hourLabelStep, onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate, onClickEditShiftType, onCopyShiftType, onTipShow, onTipHide }) {
+function CoverageView({ employees, shifts, assignments, visibleDates, editable, violations, hourLabelStep, onReassign, onClickEditShift, onClickCreateShift, onDblClickCreate, onTipShow, onTipHide }) {
   const { t } = useTranslations()
   // Build the set of distinct shift types across the whole schedule (not just visible)
   // A "type" is keyed by start_time + end_time + sorted skills
@@ -853,7 +856,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
   }, [shiftTypes, assignments])
 
   const gridStyle = {
-    gridTemplateColumns: `${EMP_W}px repeat(${visibleDates.length}, minmax(0, 1fr))`,
+    gridTemplateColumns: `repeat(${visibleDates.length}, minmax(0, 1fr))`,
   }
 
   return (
@@ -861,9 +864,6 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
       <div className="min-w-[900px]">
         {/* Date header */}
         <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style={gridStyle}>
-          <div className="px-4 py-2 border-r border-gray-200 text-xs font-semibold text-muted flex items-center">
-            {t('byShift')}
-          </div>
           {visibleDates.map((d) => (
             <div key={d} className="px-2 py-2 border-r border-gray-100 text-xs font-semibold text-dark text-center flex items-center justify-center gap-1">
               {format(parseISO(d), 'EEE d MMM')}
@@ -890,40 +890,6 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
         {/* Shift type rows */}
         {shiftTypes.map((type) => (
           <div key={type.key} className="grid border-b border-gray-100 hover:bg-gray-50/40 transition-colors group/row" style={gridStyle}>
-            {/* Row label — click to bulk-edit */}
-            <div
-              className={[
-                'px-4 border-r border-gray-200 bg-white flex flex-col justify-center gap-1',
-                editable ? 'cursor-pointer hover:bg-brand-lavender-light/30' : '',
-              ].join(' ')}
-              style={{ height: ROW_H }}
-              onClick={editable ? () => onClickEditShiftType(type) : undefined}
-              title={editable ? t('clickToEditAll') : undefined}
-            >
-              <p className="text-xs font-roboto font-semibold text-dark truncate" title={type.label}>{type.label}</p>
-              {type.name && (
-                <p className="text-[10px] font-roboto text-muted">{type.start_time} – {type.end_time}</p>
-              )}
-              {type.required_skills.length > 0 ? (
-                <SkillChips skills={type.required_skills} />
-              ) : (
-                <span className="text-[10px] text-muted italic">{t('anySkills')}</span>
-              )}
-              {editable && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onCopyShiftType(type) }}
-                  className="mt-0.5 self-start flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-200 text-[10px] font-medium text-muted hover:text-brand-purple hover:border-brand-purple bg-white transition-colors opacity-0 group-hover/row:opacity-100 focus:opacity-100"
-                  title={t('duplicateAllShifts')}
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <rect x="9" y="9" width="13" height="13" rx="2" />
-                    <path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                  </svg>
-                  {t('copyRow')}
-                </button>
-              )}
-            </div>
-
             {/* Date cells — horizontal time axis with shift bars positioned by time */}
             {visibleDates.map((d) => {
               const slots = cellMap[type.key]?.[d] ?? []
@@ -1199,8 +1165,6 @@ export default function ScheduleGantt({
           onClickEditShift={handleClickEditShift}
           onClickCreateShift={handleClickCreateShift}
           onDblClickCreate={handleDblClickCreate}
-          onClickEditShiftType={handleClickEditShiftType}
-          onCopyShiftType={handleCopyShiftType}
           onTipShow={handleTipShow}
           onTipHide={handleTipHide}
         />
