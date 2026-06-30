@@ -195,7 +195,7 @@ function TimeChip({ label, value, onClick }) {
       onClick={onClick}
       className="flex-1 flex flex-col items-center gap-1 rounded-xl border border-white/15 py-3 px-2 hover:border-white/30 active:scale-[0.97] transition-all"
     >
-      <span className="text-xs font-semibold text-brand-purple/50 uppercase tracking-wider">{label}</span>
+      <span className="text-sm font-semibold text-brand-purple/50 uppercase tracking-wider">{label}</span>
       <span className="text-xl font-bold text-brand-purple">{value}</span>
       <ClockIcon className="h-4 w-4 text-brand-purple/50 mt-0.5" />
     </button>
@@ -204,7 +204,7 @@ function TimeChip({ label, value, onClick }) {
 
 // ── Field label ───────────────────────────────────────────────────────────────
 function FieldLabel({ children }) {
-  return <p className="text-xs font-semibold text-brand-purple/50 uppercase tracking-wider mb-2">{children}</p>
+  return <p className="text-sm font-semibold text-brand-purple/50 uppercase tracking-wider mb-2">{children}</p>
 }
 
 export default function AvailabilityPage() {
@@ -376,7 +376,7 @@ export default function AvailabilityPage() {
                     type="button"
                     onClick={() => setForm({ ...form, type: opt.value })}
                     className={[
-                      'rounded-xl border-2 py-3 px-2 text-center text-xs font-semibold transition-all',
+                      'rounded-xl border-2 py-3 px-2 text-center text-sm font-semibold transition-all',
                       form.type === opt.value
                         ? 'border-brand-purple text-brand-purple hover:border-brand-purple/80 hover:text-brand-purple/80'
                         : 'border-white/15 text-brand-purple/40 hover:border-white/30 hover:text-brand-purple/60',
@@ -463,7 +463,7 @@ export default function AvailabilityPage() {
             )}
 
             {addError && (
-              <p className="text-xs text-red-400">{addError}</p>
+              <p className="text-sm text-red-400">{addError}</p>
             )}
 
             <button
@@ -514,7 +514,7 @@ export default function AvailabilityPage() {
                       >
                         <div className="min-w-0">
                           <p className="text-purple text-sm font-medium">{ruleLabel(r, t)}</p>
-                          <p className="text-purple/40 text-xs mt-0.5">{timeLabel(r, t)}</p>
+                          <p className="text-purple/40 text-sm mt-0.5">{timeLabel(r, t)}</p>
                         </div>
                         <button
                           onClick={() => handleRemove(r.id)}
@@ -533,7 +533,7 @@ export default function AvailabilityPage() {
           )
         })()}
 
-        <p className="text-center text-white/20 text-xs mt-8">
+        <p className="text-center text-white/20 text-sm mt-8">
           {t('availFooter')}
         </p>
       </div>

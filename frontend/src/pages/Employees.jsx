@@ -215,7 +215,7 @@ export default function Employees() {
       <div className="bg-white rounded-xl shadow-soft">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               {t('employeesIntro')}
             </p>
           </div>
@@ -236,7 +236,7 @@ export default function Employees() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase tracking-wider text-muted">
+              <thead className="bg-gray-50 text-sm uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-4 py-3 text-left w-8"></th>
                   <th className="px-4 py-3 text-left">{t('name')}</th>
@@ -269,19 +269,19 @@ export default function Employees() {
                           </button>
                         </td>
                         <td className="px-4 py-3 font-medium text-dark">{emp.name}</td>
-                        <td className="px-4 py-3 text-muted font-roboto text-xs">{emp.phone || '—'}</td>
+                        <td className="px-4 py-3 text-muted font-roboto text-sm">{emp.phone || '—'}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
                             {emp.skills.length === 0
-                              ? <span className="text-muted text-xs">—</span>
+                              ? <span className="text-muted text-sm">—</span>
                               : emp.skills.map((s) => <Badge key={s} colour="purple">{s}</Badge>)}
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           {!rules ? (
-                            <span className="text-muted text-xs">{t('expandToView')}</span>
+                            <span className="text-muted text-sm">{t('expandToView')}</span>
                           ) : counts === null ? (
-                            <span className="text-muted text-xs">{t('noRules')}</span>
+                            <span className="text-muted text-sm">{t('noRules')}</span>
                           ) : (
                             <div className="flex flex-wrap gap-1">
                               {counts.preferred > 0 && (
@@ -361,7 +361,7 @@ export default function Employees() {
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
             />
-            <p className="text-xs text-muted mt-1">{t('phoneHint')}</p>
+            <p className="text-sm text-muted mt-1">{t('phoneHint')}</p>
           </div>
           <Input
             label={t('nifLabel')}
@@ -371,7 +371,7 @@ export default function Employees() {
           />
           {/* Skills picker */}
           <div>
-            <label className="block mb-1.5 text-xs font-semibold text-dark">{t('skillsLabel')}</label>
+            <label className="block mb-1.5 text-sm font-semibold text-dark">{t('skillsLabel')}</label>
             {/* Selected skill tags */}
             {selectedSkills.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
@@ -380,7 +380,7 @@ export default function Employees() {
                     key={s}
                     type="button"
                     onClick={() => toggleSkill(s)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-brand-purple text-white hover:bg-opacity-80"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium bg-brand-purple text-white hover:bg-opacity-80"
                   >
                     {s} <span className="text-white/70">×</span>
                   </button>
@@ -395,7 +395,7 @@ export default function Employees() {
                     key={s}
                     type="button"
                     onClick={() => toggleSkill(s)}
-                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-muted hover:bg-brand-lavender hover:text-dark"
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-muted hover:bg-brand-lavender hover:text-dark"
                   >
                     + {s}
                   </button>
@@ -531,15 +531,15 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
 
   return (
     <div>
-      <p className="text-xs uppercase tracking-wider text-muted font-semibold mb-3">
+      <p className="text-sm uppercase tracking-wider text-muted font-semibold mb-3">
         {t('availabilityRules')}
       </p>
 
       {/* Rules table */}
       {rules.length === 0 ? (
-        <p className="text-xs text-muted mb-3">{t('noRulesDefault')}</p>
+        <p className="text-sm text-muted mb-3">{t('noRulesDefault')}</p>
       ) : (
-        <table className="w-full text-xs mb-4">
+        <table className="w-full text-sm mb-4">
           <thead>
             <tr className="text-left text-muted border-b border-gray-100">
               <th className="pb-1.5 pr-4 font-medium">{t('type')}</th>
@@ -577,11 +577,11 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
 
       {/* Add rule form */}
       <div className="bg-white rounded-lg p-3 border border-dashed border-gray-200 space-y-2">
-        <p className="text-xs text-muted font-medium">{t('addRule')}</p>
+        <p className="text-sm text-muted font-medium">{t('addRule')}</p>
         <div className="flex flex-wrap items-end gap-2">
           {/* Type */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">{t('type')}</label>
+            <label className="text-sm text-muted">{t('type')}</label>
             <Select
               size="sm"
               value={form.type}
@@ -596,7 +596,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
 
           {/* Applies to */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted">{t('appliesTo')}</label>
+            <label className="text-sm text-muted">{t('appliesTo')}</label>
             <Select
               size="sm"
               value={form.applies}
@@ -608,7 +608,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {/* Day picker — only when applies == 'dow' */}
           {form.applies === 'dow' && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('day')}</label>
+              <label className="text-sm text-muted">{t('day')}</label>
               <Select
                 size="sm"
                 value={form.day_of_week}
@@ -621,7 +621,7 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {/* Date picker — only when applies == 'date' */}
           {form.applies === 'date' && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('date')}</label>
+              <label className="text-sm text-muted">{t('date')}</label>
               <input
                 type="date"
                 value={form.specific_date}
@@ -635,18 +635,18 @@ function AvailabilityPanel({ employeeId, rules, onChange }) {
           {!form.allDay && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted">{t('from')}</label>
+                <label className="text-sm text-muted">{t('from')}</label>
                 <input type="time" value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted">{t('to')}</label>
+                <label className="text-sm text-muted">{t('to')}</label>
                 <input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} className="rounded-lg border border-brand-lavender bg-white px-2 py-1.5 text-sm text-dark focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-colors duration-150" />
               </div>
             </>
           )}
 
           {/* All day toggle */}
-          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer pb-1.5">
+          <label className="flex items-center gap-1.5 text-sm text-muted cursor-pointer pb-1.5">
             <input
               type="checkbox"
               checked={form.allDay}

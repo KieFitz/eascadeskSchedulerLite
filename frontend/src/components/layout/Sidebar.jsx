@@ -43,7 +43,7 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="text-white font-semibold text-sm leading-tight">Eascadesk</p>
-            <p className="text-white/50 text-xs">Scheduler</p>
+            <p className="text-white/50 text-sm">Scheduler</p>
           </div>
         </div>
       </div>
@@ -97,8 +97,8 @@ export default function Sidebar() {
       <div className="px-3 py-4 border-t border-white/10 space-y-2">
         {user && (
           <div className="px-3 py-2">
-            <p className="text-white text-xs font-medium truncate">{user.username}</p>
-            <p className="text-white/50 text-xs truncate">{user.email}</p>
+            <p className="text-white text-sm font-medium truncate">{user.username}</p>
+            <p className="text-white/50 text-sm truncate">{user.email}</p>
             <div className="mt-1.5">
               {isPro ? (
                 <Badge colour="teal">{t('pro')}</Badge>

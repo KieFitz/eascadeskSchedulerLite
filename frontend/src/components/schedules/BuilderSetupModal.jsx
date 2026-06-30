@@ -132,7 +132,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
     <Modal open={open} onClose={onClose} title={t('newSchedule')} size="sm">
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">
+          <label className="block text-sm font-medium text-muted mb-1">
             {t('builderName')} <span className="text-gray-400">{t('optional')}</span>
           </label>
           <input
@@ -146,7 +146,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">{t('duration')}</label>
+          <label className="block text-sm font-medium text-muted mb-1">{t('duration')}</label>
           <div className="flex gap-2">
             {DURATION_OPTIONS.map((opt) => {
               const locked = !isPro && opt.days > 7
@@ -173,7 +173,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-muted mb-1">{t('startDate')}</label>
+          <label className="block text-sm font-medium text-muted mb-1">{t('startDate')}</label>
           <input
             type="date"
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
@@ -181,13 +181,13 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
             onChange={(e) => setWeekStart(e.target.value)}
           />
           {weekStart && dateTo && (
-            <p className="text-xs text-muted mt-1">{formatDateRange(weekStart, dateTo)}</p>
+            <p className="text-sm text-muted mt-1">{formatDateRange(weekStart, dateTo)}</p>
           )}
         </div>
 
         {prevRuns.length > 0 && (
           <div>
-            <label className="block text-xs font-medium text-muted mb-1">
+            <label className="block text-sm font-medium text-muted mb-1">
               {t('copyShiftsFrom')} <span className="text-gray-400">{t('optional')}</span>
             </label>
             <Select
@@ -201,7 +201,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
               }))}
             />
             {copyFromId && (
-              <p className="text-xs text-muted mt-1">
+              <p className="text-sm text-muted mt-1">
                 {t('copyShiftsNote')}
               </p>
             )}
@@ -209,7 +209,7 @@ export default function BuilderSetupModal({ open, onClose, onCreated }) {
         )}
 
         {isPro && (
-          <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2">
+          <p className="text-sm text-muted bg-gray-50 rounded-lg px-3 py-2">
             {t('builderProNote')}
           </p>
         )}

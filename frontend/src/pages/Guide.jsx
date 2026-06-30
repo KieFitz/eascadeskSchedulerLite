@@ -58,7 +58,7 @@ export default function Guide() {
               <a
                 key={anchor}
                 href={`#${anchor}`}
-                className="text-xs px-3 py-1.5 rounded-full bg-brand-lavender/40 text-brand-purple font-medium hover:bg-brand-lavender transition-colors"
+                className="text-sm px-3 py-1.5 rounded-full bg-brand-lavender/40 text-brand-purple font-medium hover:bg-brand-lavender transition-colors"
               >
                 {label}
               </a>
@@ -96,7 +96,7 @@ export default function Guide() {
         <Section id="quick-reference" title={t('guideQuickRefTitle')}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase tracking-wider text-muted">
+              <thead className="bg-gray-50 text-sm uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-4 py-2 text-left">{t('guideQuickRefWant')}</th>
                   <th className="px-4 py-2 text-left">{t('guideQuickRefGo')}</th>

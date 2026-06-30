@@ -55,7 +55,7 @@ function ShiftTooltip({ tip }) {
 
   return createPortal(
     <div
-      className="bg-dark text-white text-xs rounded-xl shadow-card px-3 py-2.5 space-y-1.5"
+      className="bg-dark text-white text-sm rounded-xl shadow-card px-3 py-2.5 space-y-1.5"
       style={style}
     >
       {/* Name (optional) + time + date */}
@@ -269,7 +269,7 @@ function ShiftBar({ a, editable, draggable = true, violations, onClickEdit, onDr
 }
 
 function SkillChips({ skills = [] }) {
-  if (!skills.length) return <span className="text-muted text-xs italic">any</span>
+  if (!skills.length) return <span className="text-muted text-sm italic">any</span>
   return (
     <div className="flex flex-wrap gap-1">
       {skills.map((s) => (
@@ -306,7 +306,7 @@ function WeekNav({ weekStart, allDates, daysInView, onPrev, onNext, onToday }) {
         <ChevronRightIcon className="h-4 w-4 text-dark" />
       </button>
       <button onClick={onToday}
-        className="ml-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-medium text-dark hover:bg-gray-50 transition-colors">
+        className="ml-1 px-2.5 py-1 rounded-lg border border-gray-200 text-sm font-medium text-dark hover:bg-gray-50 transition-colors">
         {t('today')}
       </button>
     </div>
@@ -322,7 +322,7 @@ function DayWeekToggle({ daysInView, onChange }) {
         { days: 7, label: t('viewWeek') },
       ].map(({ days, label }) => (
         <button key={days} onClick={() => onChange(days)}
-          className={['px-3 py-1.5 text-xs font-medium transition-colors',
+          className={['px-3 py-1.5 text-sm font-medium transition-colors',
             daysInView === days ? 'bg-brand-purple text-white' : 'text-muted hover:bg-gray-50'].join(' ')}>
           {label}
         </button>
@@ -341,7 +341,7 @@ function ViewToggle({ view, onChange }) {
         { id: 'shift',    Icon: ListBulletIcon,   label: t('listView')   },
       ].map(({ id, Icon, label }) => (
         <button key={id} onClick={() => onChange(id)}
-          className={['flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+          className={['flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors',
             view === id ? 'bg-brand-purple text-white' : 'text-muted hover:bg-gray-50'].join(' ')}>
           <Icon className="h-3.5 w-3.5" />
           {label}
@@ -401,11 +401,11 @@ function EmployeeView({
       <div className="min-w-[900px]">
         {/* Date header */}
         <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style={gridStyle}>
-          <div className="px-4 py-2 border-r border-gray-200 text-xs font-semibold text-muted flex items-center">
+          <div className="px-4 py-2 border-r border-gray-200 text-sm font-semibold text-muted flex items-center">
             Employee
           </div>
           {visibleDates.map((d) => (
-            <div key={d} className="px-2 py-2 border-r border-gray-100 text-xs font-semibold text-dark text-center flex items-center justify-center gap-1">
+            <div key={d} className="px-2 py-2 border-r border-gray-100 text-sm font-semibold text-dark text-center flex items-center justify-center gap-1">
               {format(parseISO(d), 'EEE d MMM')}
               {editable && (
                 <button
@@ -587,13 +587,13 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
         return (
           <div key={d}>
             <div className="px-4 py-2 bg-gray-50 flex items-center gap-2 sticky top-0 z-10 border-b border-gray-200">
-              <span className="text-xs font-bold text-brand-purple">{format(parseISO(d), 'EEEE')}</span>
-              <span className="text-xs font-semibold text-dark">{format(parseISO(d), 'd MMMM yyyy')}</span>
-              <span className="ml-auto text-xs text-muted">{t('slotsCount', slots.length)}</span>
+              <span className="text-sm font-bold text-brand-purple">{format(parseISO(d), 'EEEE')}</span>
+              <span className="text-sm font-semibold text-dark">{format(parseISO(d), 'd MMMM yyyy')}</span>
+              <span className="ml-auto text-sm text-muted">{t('slotsCount', slots.length)}</span>
               {editable && (
                 <button
                   onClick={() => onClickCreateShift(d)}
-                  className="flex items-center gap-1 text-xs text-brand-purple hover:text-brand-purple-light font-medium transition-colors"
+                  className="flex items-center gap-1 text-sm text-brand-purple hover:text-brand-purple-light font-medium transition-colors"
                   title={t('addShift')}
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
@@ -621,7 +621,7 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                       )}
                       {a.name?.trim() ? (
                         <span className="min-w-0">
-                          <span className="block text-xs font-semibold text-dark truncate" title={a.name.trim()}>
+                          <span className="block text-sm font-semibold text-dark truncate" title={a.name.trim()}>
                             {a.name.trim()}
                           </span>
                           <span className="block font-roboto text-[10px] text-muted">
@@ -629,7 +629,7 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                           </span>
                         </span>
                       ) : (
-                        <span className="font-roboto text-xs font-semibold text-dark">
+                        <span className="font-roboto text-sm font-semibold text-dark">
                           {a.start_time} – {a.end_time}
                         </span>
                       )}
@@ -662,14 +662,14 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
                         </>
                       ) : (
                         assigned ? (
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium ${
                             a.source === 'SOLVER' ? 'bg-brand-teal/15 text-teal-800' : 'bg-brand-lavender-light text-brand-purple'
                           }`}>
                             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                             {a.employee_name}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
                             Unassigned
                           </span>
@@ -691,7 +691,7 @@ function ShiftView({ employees, assignments, visibleDates, editable, violations,
           </p>
           <div className="flex flex-wrap gap-2">
             {unscheduled.map((e) => (
-              <span key={e.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 bg-white text-xs text-dark">
+              <span key={e.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 bg-white text-sm text-dark">
                 <span className="h-5 w-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-muted">
                   {e.name?.[0]?.toUpperCase()}
                 </span>
@@ -735,7 +735,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
 
   return (
     <Modal open title={t('editAllShiftsType')} onClose={onClose} size="sm">
-      <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-xs text-muted">
+      <div className="mb-4 rounded-lg bg-gray-50 px-4 py-3 space-y-1 text-sm text-muted">
         <p className="font-roboto font-semibold text-dark text-sm">{type.label}</p>
         <p>{count} shift{count !== 1 ? 's' : ''} across the schedule — all will be updated.</p>
       </div>
@@ -743,26 +743,26 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
       {/* Times */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">{t('startTime')}</label>
+          <label className="block mb-1 text-sm font-semibold text-dark">{t('startTime')}</label>
           <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
         </div>
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">{t('endTime')}</label>
+          <label className="block mb-1 text-sm font-semibold text-dark">{t('endTime')}</label>
           <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-dark bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
         </div>
       </div>
-      {timeError && <p className="mb-3 text-xs text-red-600">{timeError}</p>}
+      {timeError && <p className="mb-3 text-sm text-red-600">{timeError}</p>}
 
       {/* Skills */}
       {allSkills.length > 0 && (
         <div className="mb-4">
-          <label className="block mb-1.5 text-xs font-semibold text-dark">{t('requiredSkills')}</label>
+          <label className="block mb-1.5 text-sm font-semibold text-dark">{t('requiredSkills')}</label>
           <div className="flex flex-wrap gap-1.5">
             {allSkills.map((s) => (
               <button key={s} type="button" onClick={() => toggleSkill(s)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-full text-sm font-medium border transition-colors ${
                   skills.includes(s) ? 'bg-brand-purple text-white border-brand-purple' : 'bg-white text-dark border-gray-200 hover:border-brand-purple'
                 }`}
               >{s}</button>
@@ -795,7 +795,7 @@ function ShiftTypeEditModal({ type, allShiftsOfType, allSkills, employees, onDel
             onDeleteAll()
             onClose()
           }}
-          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
             confirmDelete ? 'bg-red-500 text-white hover:bg-red-600' : 'text-red-500 hover:bg-red-50 border border-red-200'
           }`}
         >
@@ -867,7 +867,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
         {/* Date header */}
         <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style={gridStyle}>
           {visibleDates.map((d) => (
-            <div key={d} className="px-2 py-2 border-r border-gray-100 text-xs font-semibold text-dark text-center flex items-center justify-center gap-1">
+            <div key={d} className="px-2 py-2 border-r border-gray-100 text-sm font-semibold text-dark text-center flex items-center justify-center gap-1">
               {format(parseISO(d), 'EEE d MMM')}
               {editable && (
                 <button
@@ -883,7 +883,7 @@ function CoverageView({ employees, shifts, assignments, visibleDates, editable, 
         </div>
 
         {shiftTypes.length === 0 && editable && (
-          <div className="flex items-center gap-3 px-4 py-3 text-xs text-muted bg-gray-50/80 border-b border-gray-100">
+          <div className="flex items-center gap-3 px-4 py-3 text-sm text-muted bg-gray-50/80 border-b border-gray-100">
             <PlusIcon className="h-4 w-4 text-brand-purple/50 flex-shrink-0" />
             <span>{t('noShiftTypesYet')}</span>
           </div>
@@ -1173,7 +1173,7 @@ export default function ScheduleGantt({
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-100 bg-gray-50 text-xs text-muted flex-wrap">
+      <div className="flex items-center gap-4 px-4 py-2 border-t border-gray-100 bg-gray-50 text-sm text-muted flex-wrap">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-4 rounded bg-amber-100 border border-amber-300" />
           {t('unassigned')}

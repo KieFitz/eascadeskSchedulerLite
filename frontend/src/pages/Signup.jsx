@@ -93,7 +93,7 @@ export default function Signup() {
           </Link>
         </p>
 
-        <p className="text-center text-xs text-muted mt-2">
+        <p className="text-center text-sm text-muted mt-2">
           Eascadesk &copy; {new Date().getFullYear()}
         </p>
       </div>

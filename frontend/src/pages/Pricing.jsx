@@ -15,10 +15,7 @@ export default function Pricing() {
   const isPro = user?.plan === 'paid'
 
   const FREE_FEATURES = t('freeFeatures').map((text) => ({ text }))
-  const ALL_PRO_FEATURES = [
-    ...FREE_FEATURES.map((f) => ({ ...f, pro: false })),
-    ...t('proExtras').map((text) => ({ text, pro: true })),
-  ]
+  const ALL_PRO_FEATURES = t('proExtras').map((text) => ({ text, pro: true }))
   const FAQS = t('faqs')
 
   const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -80,7 +77,7 @@ export default function Pricing() {
                   €0
                   <span className="text-sm font-normal text-muted">{t('perMonth')}</span>
                 </p>
-                <p className="text-xs text-muted mt-0.5">{t('noCardRequired')}</p>
+                <p className="text-sm text-muted mt-0.5">{t('noCardRequired')}</p>
               </div>
               {!isPro && <Badge colour="purple">{t('yourPlan')}</Badge>}
             </div>
@@ -107,10 +104,10 @@ export default function Pricing() {
               <div>
                 <h3 className="font-bold text-dark text-lg">{t('pro')}</h3>
                 <p className="text-3xl font-bold text-dark mt-1">
-                  €15
+                  €39
                   <span className="text-sm font-normal text-muted">{t('perMonth')}</span>
                 </p>
-                <p className="text-xs text-muted mt-0.5">{t('cancelAnyTime')}</p>
+                <p className="text-sm text-muted mt-0.5">{t('proSubtitle')}</p>
               </div>
               {isPro
                 ? <Badge colour="teal">{t('activeBadge')}</Badge>
@@ -119,18 +116,13 @@ export default function Pricing() {
             </div>
 
             <ul className="space-y-2.5 flex-1 mb-6">
-              {ALL_PRO_FEATURES.map(({ text, pro }) => (
+              {ALL_PRO_FEATURES.map(({ text }) => (
                 <li
                   key={text}
-                  className={`flex items-start gap-2 text-sm ${pro ? 'font-medium text-brand-purple' : 'text-dark'}`}
+                  className="flex items-start gap-2 text-sm text-dark"
                 >
-                  <CheckBadgeIcon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${pro ? 'text-brand-purple' : 'text-brand-teal'}`} />
+                  <CheckBadgeIcon className="h-4 w-4 flex-shrink-0 mt-0.5 text-brand-purple" />
                   {text}
-                  {pro && (
-                    <span className="ml-auto text-xs bg-brand-purple/10 text-brand-purple rounded px-1.5 py-0.5 font-normal leading-none self-center">
-                      {t('pro')}
-                    </span>
-                  )}
                 </li>
               ))}
             </ul>
@@ -160,7 +152,7 @@ export default function Pricing() {
 
         {/* Stripe trust badge */}
         {!isPro && (
-          <p className="text-center text-xs text-muted mb-8">
+          <p className="text-center text-sm text-muted mb-8">
             {t('stripeTrust')}
           </p>
         )}
@@ -172,7 +164,7 @@ export default function Pricing() {
             {FAQS.map(({ q, a }) => (
               <div key={q}>
                 <p className="text-sm font-medium text-dark mb-1">{q}</p>
-                <p className="text-xs text-muted leading-relaxed">{a}</p>
+                <p className="text-sm text-muted leading-relaxed">{a}</p>
               </div>
             ))}
           </div>

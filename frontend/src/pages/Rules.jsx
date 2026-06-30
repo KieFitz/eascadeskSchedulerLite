@@ -81,7 +81,7 @@ export default function Rules() {
             <div>
               <h2 className="font-semibold text-dark mb-1">{t('labourLawCountry')}</h2>
               <p className="text-sm text-muted leading-relaxed">{t('labourLawDesc')}</p>
-              <p className="text-xs text-muted mt-2 italic">{t('comingSoon')}</p>
+              <p className="text-sm text-muted mt-2 italic">{t('comingSoon')}</p>
             </div>
           </div>
         </div>
@@ -111,7 +111,7 @@ export default function Rules() {
                   )}
                 </div>
                 <p className="font-semibold text-dark text-sm mb-0.5">{c.name}</p>
-                <p className="text-xs text-muted">{c.summary}</p>
+                <p className="text-sm text-muted">{c.summary}</p>
               </button>
             )
           })}
@@ -134,7 +134,7 @@ export default function Rules() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted mt-4 italic">{t('constraintsNote')}</p>
+              <p className="text-sm text-muted mt-4 italic">{t('constraintsNote')}</p>
             </div>
           ) : null
         })()}
@@ -166,7 +166,7 @@ export default function Rules() {
             {t('saveSettings')}
           </Button>
           {!isDirty && user?.country && (
-            <span className="text-xs text-muted">
+            <span className="text-sm text-muted">
               {t('currentlySetTo')}{' '}
               <strong>{countries.find((c) => c.code === user.country)?.name ?? user.country}</strong>
             </span>

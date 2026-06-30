@@ -146,7 +146,7 @@ export default function ShiftCreateModal({
 
       {/* Shift name */}
       <div className="mb-4">
-        <label className="block mb-1 text-xs font-semibold text-dark">{t('shiftNameOptional')}</label>
+        <label className="block mb-1 text-sm font-semibold text-dark">{t('shiftNameOptional')}</label>
         <input
           type="text"
           value={name}
@@ -159,7 +159,7 @@ export default function ShiftCreateModal({
       {/* Time range */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">{t('startTime')}</label>
+          <label className="block mb-1 text-sm font-semibold text-dark">{t('startTime')}</label>
           <input
             type="time"
             value={startTime}
@@ -168,7 +168,7 @@ export default function ShiftCreateModal({
           />
         </div>
         <div>
-          <label className="block mb-1 text-xs font-semibold text-dark">{t('endTime')}</label>
+          <label className="block mb-1 text-sm font-semibold text-dark">{t('endTime')}</label>
           <input
             type="time"
             value={endTime}
@@ -181,14 +181,14 @@ export default function ShiftCreateModal({
       {/* Required skills */}
       {allSkills.length > 0 && (
         <div className="mb-4">
-          <label className="block mb-1.5 text-xs font-semibold text-dark">{t('requiredSkillsOptional')}</label>
+          <label className="block mb-1.5 text-sm font-semibold text-dark">{t('requiredSkillsOptional')}</label>
           <div className="flex flex-wrap gap-1.5">
             {allSkills.map((skill) => (
               <button
                 key={skill}
                 type="button"
                 onClick={() => toggleSkill(skill)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                className={`px-2.5 py-1 rounded-full text-sm font-medium border transition-colors ${
                   selectedSkills.includes(skill)
                     ? 'bg-brand-purple text-white border-brand-purple'
                     : 'bg-white text-dark border-gray-200 hover:border-brand-purple'
@@ -224,14 +224,14 @@ export default function ShiftCreateModal({
             checked={repeat}
             onChange={(e) => setRepeat(e.target.checked)}
           />
-          <span className="text-xs font-semibold text-dark">
+          <span className="text-sm font-semibold text-dark">
             {t('repeatAcrossSchedule')}
           </span>
         </label>
 
         {repeat && (
           <div>
-            <label className="block text-xs text-muted mb-1.5">{t('repeatOnDays')}</label>
+            <label className="block text-sm text-muted mb-1.5">{t('repeatOnDays')}</label>
             <div className="flex gap-1">
               {DAYS_OF_WEEK.map((label, dow) => (
                 <button
@@ -239,7 +239,7 @@ export default function ShiftCreateModal({
                   type="button"
                   onClick={() => toggleRepeatDay(dow)}
                   className={[
-                    'flex-1 py-1 rounded text-xs font-medium border transition-colors',
+                    'flex-1 py-1 rounded text-sm font-medium border transition-colors',
                     repeatDays.includes(dow)
                       ? 'bg-brand-purple text-white border-brand-purple'
                       : 'bg-white text-muted border-gray-200 hover:border-brand-purple',
@@ -249,14 +249,14 @@ export default function ShiftCreateModal({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted mt-1.5">
+            <p className="text-sm text-muted mt-1.5">
               {t('repeatNote', dateFrom && dateTo ? t('repeatRangeFromTo', dateFrom, dateTo) : t('repeatRangeAcross'))}
             </p>
           </div>
         )}
       </div>
 
-      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
       {(() => {
         let addLabel = t('addShift')

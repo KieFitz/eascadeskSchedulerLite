@@ -146,7 +146,7 @@ export default function ScheduleList() {
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="font-semibold text-dark">{t('newSchedule')}</h2>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               {t('newScheduleSub')}
             </p>
           </div>
@@ -185,13 +185,13 @@ export default function ScheduleList() {
               <div className="flex flex-col items-center gap-1">
                 <DocumentArrowDownIcon className="h-8 w-8 text-brand-teal" />
                 <p className="font-medium text-dark text-sm">{file.name}</p>
-                <p className="text-xs text-muted">{(file.size / 1024).toFixed(1)} KB · {t('clickToChange')}</p>
+                <p className="text-sm text-muted">{(file.size / 1024).toFixed(1)} KB · {t('clickToChange')}</p>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1">
                 <ArrowUpTrayIcon className="h-8 w-8 text-muted" />
                 <p className="font-medium text-dark text-sm">{t('dropScheduleExcel')}</p>
-                <p className="text-xs text-muted">{t('dropOrBrowse')}</p>
+                <p className="text-sm text-muted">{t('dropOrBrowse')}</p>
               </div>
             )}
           </div>
@@ -218,7 +218,7 @@ export default function ScheduleList() {
       {/* ── Active schedule ──────────────────────────────────────────── */}
       {active && (
         <div className="mb-5">
-          <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+          <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
             {t('activeScheduleThisWeek')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -248,7 +248,7 @@ export default function ScheduleList() {
       ) : (
         <div>
           {rest.length > 0 && (
-            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">
               {active ? t('allSchedules') : t('schedules')}
             </h3>
           )}

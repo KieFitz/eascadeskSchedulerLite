@@ -23,7 +23,7 @@ export default function Header({ title }) {
         )}
         {user && (
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-purple to-brand-teal flex items-center justify-center">
-            <span className="text-white text-xs font-bold">
+            <span className="text-white text-sm font-bold">
               {user.username?.charAt(0).toUpperCase()}
             </span>
           </div>

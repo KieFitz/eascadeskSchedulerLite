@@ -231,7 +231,7 @@ export default function ClockEvents() {
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="font-semibold text-dark">{t('clockLogTitle')}</h2>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-sm text-muted mt-0.5">
               {t('clockLogIntro')}
             </p>
           </div>
@@ -255,7 +255,7 @@ export default function ClockEvents() {
         <div className="px-6 py-3 border-b border-gray-100">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('employeeCol')}</label>
+              <label className="text-sm text-muted">{t('employeeCol')}</label>
               <Select
                 size="sm"
                 value={filterEmp}
@@ -265,7 +265,7 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('monthExport')}</label>
+              <label className="text-sm text-muted">{t('monthExport')}</label>
               <Select
                 size="sm"
                 value={filterMonth}
@@ -282,7 +282,7 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('from')}</label>
+              <label className="text-sm text-muted">{t('from')}</label>
               <input
                 type="date"
                 value={filterFrom}
@@ -291,7 +291,7 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('to')}</label>
+              <label className="text-sm text-muted">{t('to')}</label>
               <input
                 type="date"
                 value={filterTo}
@@ -300,7 +300,7 @@ export default function ClockEvents() {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted">{t('rowsPerPage')}</label>
+              <label className="text-sm text-muted">{t('rowsPerPage')}</label>
               <Select
                 size="sm"
                 value={String(perPage)}
@@ -347,7 +347,7 @@ export default function ClockEvents() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase tracking-wider text-muted">
+              <thead className="bg-gray-50 text-sm uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-4 py-3 text-left">{t('employeeCol')}</th>
                   <th className="px-4 py-3 text-left">{t('phone')}</th>
@@ -365,7 +365,7 @@ export default function ClockEvents() {
                     className={`hover:bg-gray-50/60 ${e.deleted_at ? 'opacity-50' : ''}`}
                   >
                     <td className="px-4 py-3 font-medium text-dark">{e.employee_name}</td>
-                    <td className="px-4 py-3 text-muted font-roboto text-xs">{e.employee_phone}</td>
+                    <td className="px-4 py-3 text-muted font-roboto text-sm">{e.employee_phone}</td>
                     <td className="px-4 py-3">
                       <Badge colour={EVENT_COLOUR[e.event_type] ?? 'gray'}>
                         {EVENT_LABEL[e.event_type] ?? e.event_type}
@@ -429,7 +429,7 @@ export default function ClockEvents() {
             </table>
             {/* Pagination footer */}
             <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
-              <p className="text-xs text-muted">
+              <p className="text-sm text-muted">
                 {t('showingEvents', total === 0 ? 0 : page * perPage + 1, Math.min((page + 1) * perPage, total), total)}
                 {showDeleted && t('includingDeleted')}
               </p>
@@ -437,31 +437,31 @@ export default function ClockEvents() {
                 <button
                   onClick={() => setPage(0)}
                   disabled={page === 0}
-                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-sm rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
                 >
                   «
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-sm rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
                 >
                   ‹
                 </button>
-                <span className="px-3 py-1 text-xs text-dark">
+                <span className="px-3 py-1 text-sm text-dark">
                   {t('pageOf', page + 1, Math.max(1, Math.ceil(total / perPage)))}
                 </span>
                 <button
                   onClick={() => setPage((p) => p + 1)}
                   disabled={(page + 1) * perPage >= total}
-                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-sm rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
                 >
                   ›
                 </button>
                 <button
                   onClick={() => setPage(Math.ceil(total / perPage) - 1)}
                   disabled={(page + 1) * perPage >= total}
-                  className="px-2 py-1 text-xs rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-sm rounded border border-gray-200 text-muted disabled:opacity-40 hover:bg-gray-50 disabled:cursor-not-allowed"
                 >
                   »
                 </button>
@@ -526,7 +526,7 @@ export default function ClockEvents() {
             {t('deleteClockBody')}
           </p>
           {deleteTarget && (
-            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
+            <p className="text-sm text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
               {deleteTarget.label}
             </p>
           )}
@@ -557,7 +557,7 @@ export default function ClockEvents() {
       >
         {auditEvent && (
           <div className="space-y-4">
-            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
+            <p className="text-sm text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
               {auditEvent.label}
             </p>
             {auditLoading ? (
@@ -566,7 +566,7 @@ export default function ClockEvents() {
               <>
                 {/* Audit log */}
                 <div>
-                  <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t('changeLog')}</p>
+                  <p className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">{t('changeLog')}</p>
                   {auditLog.audit_log?.length === 0 ? (
                     <p className="text-sm text-muted text-center py-2">{t('noEntries')}</p>
                   ) : (
@@ -575,11 +575,11 @@ export default function ClockEvents() {
                         <div key={entry.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <Badge colour={ACTION_COLOUR[entry.action] ?? 'gray'}>{entry.action}</Badge>
-                            <span className="text-xs text-muted">{formatDateTime(entry.created_at)}</span>
+                            <span className="text-sm text-muted">{formatDateTime(entry.created_at)}</span>
                           </div>
-                          <p className="text-xs text-dark"><span className="font-medium">{t('auditBy')}</span> {entry.actor_label}</p>
+                          <p className="text-sm text-dark"><span className="font-medium">{t('auditBy')}</span> {entry.actor_label}</p>
                           {entry.reason && (
-                            <p className="text-xs text-muted mt-0.5"><span className="font-medium">{t('auditReason')}</span> {entry.reason}</p>
+                            <p className="text-sm text-muted mt-0.5"><span className="font-medium">{t('auditReason')}</span> {entry.reason}</p>
                           )}
                         </div>
                       ))}
@@ -590,7 +590,7 @@ export default function ClockEvents() {
                 {/* Edit requests */}
                 {auditLog.edit_requests?.length > 0 && (
                   <div>
-                    <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{t('editRequests')}</p>
+                    <p className="text-sm font-semibold text-muted uppercase tracking-wider mb-2">{t('editRequests')}</p>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {auditLog.edit_requests.map((req) => (
                         <div key={req.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
@@ -598,11 +598,11 @@ export default function ClockEvents() {
                             <Badge colour={req.status === 'approved' ? 'teal' : req.status === 'rejected' ? 'red' : req.status === 'cancelled' ? 'gray' : 'purple'}>
                               {req.status}
                             </Badge>
-                            <span className="text-xs text-muted">{formatDateTime(req.created_at)}</span>
+                            <span className="text-sm text-muted">{formatDateTime(req.created_at)}</span>
                           </div>
-                          <p className="text-xs text-dark"><span className="font-medium">{t('auditProposed')}</span> {formatDateTime(req.proposed_event_at)}</p>
-                          {req.reason && <p className="text-xs text-muted mt-0.5"><span className="font-medium">{t('auditReason')}</span> {req.reason}</p>}
-                          {req.resolved_at && <p className="text-xs text-muted mt-0.5"><span className="font-medium">{t('auditResolved')}</span> {formatDateTime(req.resolved_at)}</p>}
+                          <p className="text-sm text-dark"><span className="font-medium">{t('auditProposed')}</span> {formatDateTime(req.proposed_event_at)}</p>
+                          {req.reason && <p className="text-sm text-muted mt-0.5"><span className="font-medium">{t('auditReason')}</span> {req.reason}</p>}
+                          {req.resolved_at && <p className="text-sm text-muted mt-0.5"><span className="font-medium">{t('auditResolved')}</span> {formatDateTime(req.resolved_at)}</p>}
                         </div>
                       ))}
                     </div>
@@ -628,7 +628,7 @@ export default function ClockEvents() {
             {t('correctionBody')}
           </p>
           {editTarget && (
-            <p className="text-xs text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
+            <p className="text-sm text-muted bg-gray-50 rounded-lg px-3 py-2 font-roboto">
               {editTarget.label}
             </p>
           )}

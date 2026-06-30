@@ -95,9 +95,9 @@ export default function ShiftEditModal({
           ) : null}
         </div>
         {assignment.name?.trim() && (
-          <p className="font-roboto text-dark text-xs">{assignment.start_time} – {assignment.end_time}</p>
+          <p className="font-roboto text-dark text-sm">{assignment.start_time} – {assignment.end_time}</p>
         )}
-        <p className="text-muted text-xs">{formattedDate}</p>
+        <p className="text-muted text-sm">{formattedDate}</p>
         {assignment.required_skills?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {assignment.required_skills.map((s) => (
@@ -117,23 +117,23 @@ export default function ShiftEditModal({
           <>
             {hard.length > 0 && (
               <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 space-y-1">
-                <p className="text-xs font-semibold text-red-700 flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
                   <ExclamationTriangleIcon className="h-3.5 w-3.5" />
                   {t('constraintViolations')}
                 </p>
                 {hard.map((v, i) => (
-                  <p key={i} className="text-xs text-red-600 pl-5">{v.message}</p>
+                  <p key={i} className="text-sm text-red-600 pl-5">{v.message}</p>
                 ))}
               </div>
             )}
             {soft.length > 0 && (
               <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-1">
-                <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-amber-700 flex items-center gap-1.5">
                   <ExclamationTriangleIcon className="h-3.5 w-3.5" />
                   {t('warnings')}
                 </p>
                 {soft.map((v, i) => (
-                  <p key={i} className="text-xs text-amber-700 pl-5">{v.message}</p>
+                  <p key={i} className="text-sm text-amber-700 pl-5">{v.message}</p>
                 ))}
               </div>
             )}
@@ -157,14 +157,14 @@ export default function ShiftEditModal({
       {onFindSubstitutes && (
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-dark flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-dark flex items-center gap-1.5">
               <UserGroupIcon className="h-3.5 w-3.5 text-brand-purple" />
               {t('findReplacement')}
             </span>
             <button
               onClick={handleFindSubstitutes}
               disabled={loadingSubs}
-              className="flex items-center gap-1 text-xs font-medium text-brand-purple hover:text-brand-purple/80 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1 text-sm font-medium text-brand-purple hover:text-brand-purple/80 disabled:opacity-50 transition-colors"
             >
               {loadingSubs ? <Spinner size="sm" /> : null}
               {loadingSubs ? t('searching') : t('search')}
@@ -172,19 +172,19 @@ export default function ShiftEditModal({
           </div>
 
           {subsError && (
-            <p className="text-xs text-red-500">{subsError}</p>
+            <p className="text-sm text-red-500">{subsError}</p>
           )}
 
           {substitutes !== null && (
             <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               {substitutes.length === 0 ? (
-                <p className="px-3 py-2.5 text-xs text-muted text-center">{t('noReplacementsFound')}</p>
+                <p className="px-3 py-2.5 text-sm text-muted text-center">{t('noReplacementsFound')}</p>
               ) : substitutes.slice(0, 6).map((sub) => (
                 <button
                   key={sub.employee_id}
                   onClick={() => setSelectedEmpId(sub.employee_id)}
                   className={[
-                    'w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors',
+                    'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
                     selectedEmpId === sub.employee_id
                       ? 'bg-brand-lavender-light'
                       : 'hover:bg-gray-50',
@@ -219,7 +219,7 @@ export default function ShiftEditModal({
       <div className="mt-5 flex items-center justify-between gap-2">
         <button
           onClick={handleDelete}
-          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+          className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
             confirmDelete
               ? 'bg-red-500 text-white hover:bg-red-600'
               : 'text-red-500 hover:bg-red-50 border border-red-200'

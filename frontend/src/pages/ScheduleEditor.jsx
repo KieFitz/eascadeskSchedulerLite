@@ -56,12 +56,12 @@ function SolvingBanner({ t, scoreInfo }) {
         <Spinner size="sm" className="text-teal-600" />
         <span className="text-sm font-medium text-teal-800">{t('optimisingSchedule')}</span>
         {scoreInfo && (
-          <span className="text-xs font-mono font-medium text-teal-700 bg-teal-100 rounded px-1.5 py-0.5">
+          <span className="text-sm font-mono font-medium text-teal-700 bg-teal-100 rounded px-1.5 py-0.5">
             {t('liveScoreLabel')} {scoreInfo}
           </span>
         )}
       </div>
-      <span className="text-xs text-teal-600 hidden sm:block">
+      <span className="text-sm text-teal-600 hidden sm:block">
         {t('navigateAwayHint')}
       </span>
       {/* Indeterminate progress bar */}
@@ -133,7 +133,7 @@ function ViolationsPanel({ violations, shifts, onDismiss, t }) {
       {!collapsed && (
         <div className="px-4 pb-3 max-h-56 overflow-y-auto space-y-1">
           {items.map((v, i) => (
-            <div key={i} className="flex items-start gap-2 text-xs py-1 border-t border-black/5 first:border-0">
+            <div key={i} className="flex items-start gap-2 text-sm py-1 border-t border-black/5 first:border-0">
               <ExclamationTriangleIcon
                 className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${v.severity === 'hard' ? 'text-red-500' : 'text-amber-500'}`}
               />
@@ -501,7 +501,7 @@ export default function ScheduleEditor() {
             {/* Back link */}
             <button
               onClick={() => navigate('/schedules')}
-              className="flex items-center gap-1 text-xs text-muted hover:text-dark mb-1 transition-colors"
+              className="flex items-center gap-1 text-sm text-muted hover:text-dark mb-1 transition-colors"
             >
               <ArrowLeftIcon className="h-3 w-3" />
               {t('mySchedulesLink')}
@@ -541,7 +541,7 @@ export default function ScheduleEditor() {
 
             {/* Free plan counter */}
             {user?.plan === 'free' && usage && (
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-amber-700">
+              <div className="mt-1 flex items-center gap-1.5 text-sm text-amber-700">
                 <SolveDotsCounter used={usage.solves_used} limit={usage.solves_limit} />
                 {t('autoSchedulesUsed', usage.solves_used, usage.solves_limit)}
               </div>
@@ -551,13 +551,13 @@ export default function ScheduleEditor() {
           {/* Actions */}
           <div className="flex items-center gap-2 flex-wrap">
             {hardViolationCount > 0 && (
-              <span className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+              <span className="flex items-center gap-1 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
                 <ExclamationTriangleIcon className="h-3.5 w-3.5" />
                 {t('violationsShort', hardViolationCount)}
               </span>
             )}
             {softViolationCount > 0 && (
-              <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+              <span className="flex items-center gap-1 text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
                 <ExclamationTriangleIcon className="h-3.5 w-3.5" />
                 {t('warningsLabel', softViolationCount)}
               </span>

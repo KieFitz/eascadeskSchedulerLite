@@ -49,12 +49,12 @@ export default function OvertimeReport() {
         <div className="flex items-center gap-2">
           <h2 className="font-semibold text-dark text-sm">{t('hoursOverview')}</h2>
           {hasWarnings && !open && (
-            <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+            <span className="flex items-center gap-1 text-sm font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
               <ExclamationTriangleIcon className="h-3 w-3" />
               {t('overtimeRisk')}
             </span>
           )}
-          <span className="text-xs text-muted">
+          <span className="text-sm text-muted">
             {t('cumulativeHours')}
           </span>
         </div>
@@ -67,19 +67,19 @@ export default function OvertimeReport() {
         <div className="border-t border-gray-100 px-6 py-4">
           {/* Date range controls */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <label className="text-xs font-semibold text-dark">{t('period')}</label>
+            <label className="text-sm font-semibold text-dark">{t('period')}</label>
             <input
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-purple/40"
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-purple/40"
             />
-            <span className="text-xs text-muted">{t('to').toLowerCase()}</span>
+            <span className="text-sm text-muted">{t('to').toLowerCase()}</span>
             <input
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-purple/40"
+              className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-purple/40"
             />
           </div>
 
@@ -89,11 +89,11 @@ export default function OvertimeReport() {
             </div>
           )}
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
 
           {data && !loading && (
             <>
-              <p className="text-xs text-muted mb-3">
+              <p className="text-sm text-muted mb-3">
                 {t('schedulesInWindow', data.runs_included)}
               </p>
 
@@ -103,7 +103,7 @@ export default function OvertimeReport() {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
                         <th className="text-left py-2 pr-4 font-semibold text-muted">{t('employeeCol')}</th>

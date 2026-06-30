@@ -11,7 +11,7 @@ import { ChevronDownIcon } from '@heroicons/react/24/outline'
  *   placeholder — shown when value is '' (optional)
  *   label       — rendered above (optional)
  *   className   — extra classes on the trigger button (optional)
- *   size        — 'sm' (compact, px-2 py-1.5 text-xs) | 'md' (default, px-3 py-2 text-sm)
+ *   size        — 'sm' (compact, px-2 py-1.5 text-sm) | 'md' (default, px-3 py-2 text-sm)
  */
 export default function Select({
   value,
@@ -48,7 +48,7 @@ export default function Select({
   }, [open])
 
   const sizeClasses = size === 'sm'
-    ? 'px-2 py-1.5 text-xs'
+    ? 'px-2 py-1.5 text-sm'
     : 'px-3 py-2 text-sm'
 
   return (

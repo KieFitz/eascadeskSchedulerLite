@@ -38,11 +38,11 @@ function StatusBadge({ status, isPublished }) {
 
 // ── Date range display ────────────────────────────────────────────────────────
 function DateRange({ dateFrom, dateTo }) {
-  if (!dateFrom) return <span className="text-muted text-xs">—</span>
+  if (!dateFrom) return <span className="text-muted text-sm">—</span>
   const fmt = (d) => { try { return format(parseISO(d), 'd MMM yyyy') } catch { return d } }
-  if (dateFrom === dateTo) return <span className="text-xs text-dark">{fmt(dateFrom)}</span>
+  if (dateFrom === dateTo) return <span className="text-sm text-dark">{fmt(dateFrom)}</span>
   return (
-    <span className="text-xs text-dark">
+    <span className="text-sm text-dark">
       {fmt(dateFrom)} – {fmt(dateTo)}
     </span>
   )
@@ -109,7 +109,7 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
       </div>
 
       {/* Stats row */}
-      <div className="flex items-center gap-4 text-xs text-muted">
+      <div className="flex items-center gap-4 text-sm text-muted">
         <span>{t('employeesCount', empCount)}</span>
         <span>·</span>
         <span>{t('shiftSlotsCount', shiftCount)}</span>
@@ -156,7 +156,7 @@ export default function ScheduleCard({ run, onDelete, onExport, onRename }) {
       </div>
 
       {confirmDelete && (
-        <p className="text-xs text-red-600 text-center">
+        <p className="text-sm text-red-600 text-center">
           {t('deleteScheduleConfirm')}
         </p>
       )}
